@@ -1,0 +1,82 @@
+"""Config loading for the sidecar.
+
+The Rust/Tauri shell *owns* writing ``config.json``; the sidecar only reads it.
+We deep-merge the on-disk file over a complete set of defaults so a partial or
+older config never crashes the sidecar — every key the code reads is guaranteed
+to exist. API keys are resolved from the config first, then the environment.
+"""
+import json
+import os
+from pathlib import Path
+
+# A complete default config. Mirrors docs/superpowers/specs §7. Every key the
+# sidecar reads MUST appear here so deep-merge guarantees its presence.
+DEFAULTS = {
+    "hotkey": {"key": "shift", "side": "either", "hold_threshold_ms": 350},
+    "stt": {
+        "provider": "groq",            # groq | openai | local
+        "accuracy_mode": False,        # true -> use the openai gpt-4o-transcribe path
+        "language": "en",
+        "groq_model": "whisper-large-v3-turbo",
+        "openai_model": "gpt-4o-transcribe",
+        "local_model": "base",         # faster-whisper size for the offline fallback
+        "beam_size": 5,
+        "vad_filter": True,
+    },
+    "formatter": {
+        "provider": "anthropic",       # anthropic | groq | cerebras | off
+        "model": "claude-haiku-4-5-20251001",
+        "mode": "faithful",            # only mode in v1
+        "max_output_tokens": 1024,
+    },
+    "keys": {"groq": None, "openai": None, "anthropic": None, "cerebras": None},
+    "max_recording_seconds": 60,
+    "dictionary": [],
+    "profiles": {},                    # optional per-exe profile overrides
+}
+
+# Provider name -> environment variable fallback for its API key.
+ENV_KEYS = {
+    "groq": "GROQ_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "cerebras": "CEREBRAS_API_KEY",
+}
+
+
+def _deep_merge(base, over):
+    """Recursively merge ``over`` onto a copy of ``base`` (dicts only recurse)."""
+    out = dict(base)
+    for key, value in over.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = _deep_merge(out[key], value)
+        else:
+            out[key] = value
+    return out
+
+
+def load_config(path):
+    """Return the merged config dict. Missing/invalid file -> pure defaults."""
+    path = Path(path)
+    cfg = json.loads(json.dumps(DEFAULTS))  # deep copy so DEFAULTS stays pristine
+    if path.exists():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                cfg = _deep_merge(cfg, data)
+        except (ValueError, OSError):
+            # Corrupt or unreadable config should never take the tool down;
+            # fall back to defaults. The Rust shell surfaces config errors.
+            pass
+    return cfg
+
+
+def resolve_keys(cfg):
+    """API keys: config value wins, else the matching environment variable."""
+    keys = dict(cfg.get("keys") or {})
+    for name, env_var in ENV_KEYS.items():
+        if not keys.get(name):
+            env_val = os.environ.get(env_var)
+            if env_val:
+                keys[name] = env_val
+    return keys
