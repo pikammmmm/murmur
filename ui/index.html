@@ -32,13 +32,19 @@
         <h2>Formatting</h2>
         <label>Provider
           <select id="fmt-provider">
-            <option value="anthropic">Claude Haiku 4.5 (faithful, recommended)</option>
+            <option value="anthropic">Claude Haiku 4.5 (recommended)</option>
             <option value="groq">Groq (fast mode)</option>
             <option value="cerebras">Cerebras (fastest)</option>
             <option value="off">Off (raw transcript)</option>
           </select>
         </label>
-        <p class="hint">Faithful cleanup only — fixes punctuation, grammar, fillers; never paraphrases.</p>
+        <label>Cleanup level
+          <select id="fmt-mode">
+            <option value="grammar">Grammar + cleanup — fixes did/didn't, agreement, tense</option>
+            <option value="faithful">Faithful — verbatim, punctuation/fillers only</option>
+          </select>
+        </label>
+        <p class="hint">Grammar mode corrects grammatical mistakes to standard English while keeping your meaning. Faithful never changes your words.</p>
       </section>
 
       <section>

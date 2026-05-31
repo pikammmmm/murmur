@@ -26,7 +26,7 @@ DEFAULTS = {
     "formatter": {
         "provider": "anthropic",       # anthropic | groq | cerebras | off
         "model": "claude-haiku-4-5-20251001",
-        "mode": "faithful",            # only mode in v1
+        "mode": "grammar",             # grammar | faithful (verbatim) | (provider off = raw)
         "max_output_tokens": 1024,
     },
     "keys": {"groq": None, "openai": None, "anthropic": None, "cerebras": None},

@@ -30,7 +30,7 @@ class Passthrough:
         return user
 
 
-def build(entries, raw, tmp_path):
+def build(entries, raw, tmp_path, format_mode="faithful"):
     typed = []
     app = App(
         recorder=Rec(np.ones(10, dtype=np.float32)),
@@ -41,6 +41,7 @@ def build(entries, raw, tmp_path):
         detect=lambda: ("generic", "", ""),
         entries=entries,
         corrections_path=str(tmp_path / "corrections.json"),
+        format_mode=format_mode,
         max_seconds=0,
         emit_state=lambda s: None,
         emit_transcript=lambda x: None,
@@ -48,6 +49,22 @@ def build(entries, raw, tmp_path):
         use_threads=False,
     )
     return app, typed
+
+
+def test_grammar_mode_applies_offline_rule_pass(tmp_path):
+    # provider 'off' (Passthrough) => no LLM, but grammar mode still runs the
+    # offline rule pass before formatting.
+    app, typed = build([], "he don't know", tmp_path, format_mode="grammar")
+    app.start()
+    app.stop()
+    assert typed[-1] == "he doesn't know"
+
+
+def test_faithful_mode_leaves_grammar_alone(tmp_path):
+    app, typed = build([], "he don't know", tmp_path, format_mode="faithful")
+    app.start()
+    app.stop()
+    assert typed[-1] == "he don't know"  # verbatim — no grammar change offline
 
 
 def test_learned_exact_correction_applies_to_dictation(tmp_path):

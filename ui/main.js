@@ -13,6 +13,7 @@ function render() {
   $("stt-provider").value = cfg.stt.provider;
   $("accuracy").checked = cfg.stt.accuracy_mode;
   $("fmt-provider").value = cfg.formatter.provider;
+  $("fmt-mode").value = cfg.formatter.mode;
   $("hotkey-key").value = cfg.hotkey.key;
   $("hotkey-side").value = cfg.hotkey.side;
   $("threshold").value = cfg.hotkey.hold_threshold_ms;
@@ -44,6 +45,7 @@ function collect() {
   cfg.stt.provider = $("stt-provider").value;
   cfg.stt.accuracy_mode = $("accuracy").checked;
   cfg.formatter.provider = $("fmt-provider").value;
+  cfg.formatter.mode = $("fmt-mode").value;
   cfg.hotkey.key = $("hotkey-key").value;
   cfg.hotkey.side = $("hotkey-side").value;
   cfg.hotkey.hold_threshold_ms = parseInt($("threshold").value, 10) || 350;

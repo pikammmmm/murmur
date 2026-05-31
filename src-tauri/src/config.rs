@@ -31,7 +31,7 @@ fn d_beam() -> u32 { 5 }
 fn d_true() -> bool { true }
 fn d_fmt_provider() -> String { "anthropic".into() }
 fn d_fmt_model() -> String { "claude-haiku-4-5-20251001".into() }
-fn d_fmt_mode() -> String { "faithful".into() }
+fn d_fmt_mode() -> String { "grammar".into() }
 fn d_max_tokens() -> u32 { 1024 }
 fn d_max_rec() -> u32 { 60 }
 fn d_profiles() -> serde_json::Value { serde_json::json!({}) }
