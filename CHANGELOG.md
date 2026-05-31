@@ -1,0 +1,33 @@
+# Changelog
+
+## Phase 1 — MVP
+- Rust/Tauri shell + Python sidecar over a stdin/stdout JSON protocol.
+- Hold-Shift push-to-talk (hold-alone heuristic so capitalization doesn't trigger).
+- STT: Groq `whisper-large-v3-turbo` primary, local faster-whisper fallback,
+  OpenAI `gpt-4o-transcribe` accuracy mode.
+- Context-aware formatting (Claude Haiku 4.5): email / chat / code / notes / generic.
+- Custom dictionary; tray icon; settings UI; sidecar supervisor with backoff respawn.
+- Frozen-sidecar packaging (no Python needed for end users).
+
+## Phase 2a — pronunciation & accent adaptation
+- STT biasing (faster-whisper `hotwords`, cloud `prompt`) from dictionary + learned terms.
+- Correction engine: exact learned substitutions + Double-Metaphone phonetic match
+  + fuzzy fallback, precision-gated to never touch correct text.
+- Learns from corrections (difflib diff of raw vs. your fix); manual entries.
+- "Pronunciations & corrections" + "Teach last dictation" UI.
+
+## Phase 2b — grammar correction
+- Formatter `mode`: **grammar** (default) fixes agreement, tense, did/didn't,
+  don't/doesn't, double negatives, malformed phrases; **faithful** stays verbatim.
+- Offline high-precision grammar rule pass (works with no API key).
+- "Cleanup level" selector.
+
+## Phase 3 — polish
+- Voice commands: "new paragraph", "new line", "new bullet", "scratch that".
+- Audio cues (record/stop/error beeps), toggleable.
+- Clipboard-paste injection mode (robust for apps that reject synthetic typing).
+- Dictation history + usage stats (words, sessions, time saved), local + clearable.
+- Run-at-login toggle (HKCU Run key).
+- Tray Pause/Resume (suspends the hotkey).
+- "Try it" offline preview — see corrections + grammar + voice commands live.
+- Build script (`build.ps1`) + architecture doc.
