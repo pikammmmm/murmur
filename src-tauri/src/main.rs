@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
 
@@ -157,14 +157,29 @@ fn main() {
 
             // Tray icon + menu.
             let settings_i = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+            let pause_i = CheckMenuItem::with_id(app, "pause", "Pause dictation", true, false, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&settings_i, &quit_i])?;
+            let menu = Menu::with_items(app, &[&settings_i, &pause_i, &quit_i])?;
+            let pause_for_evt = pause_i.clone();
             let _tray = TrayIconBuilder::with_id("murmur-tray")
                 .tooltip(tray::tooltip_for("idle"))
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
-                .on_menu_event(|app, event| match event.id().as_ref() {
+                .on_menu_event(move |app, event| match event.id().as_ref() {
                     "settings" => open_settings(app),
+                    "pause" => {
+                        // muda has already toggled the check; checked == paused.
+                        let paused = pause_for_evt.is_checked().unwrap_or(false);
+                        hotkey::set_paused(paused);
+                        if let Some(t) = app.tray_by_id("murmur-tray") {
+                            tray::set_state(&t, if paused { "paused" } else { "idle" });
+                        }
+                        if paused {
+                            if let Some(state) = app.try_state::<AppState>() {
+                                state.supervisor.send("stop"); // abort any in-progress capture
+                            }
+                        }
+                    }
                     "quit" => {
                         if let Some(state) = app.try_state::<AppState>() {
                             state.supervisor.shutdown();

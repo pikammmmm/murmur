@@ -7,7 +7,7 @@
 //! `GetAsyncKeyState` — a key-up that lands while an elevated window is focused
 //! never reaches our hook (per glassbar's keyhook notes), so we must not trust
 //! our own state blindly. The trigger key is never suppressed.
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -68,6 +68,12 @@ static STATE: OnceLock<Mutex<PttState>> = OnceLock::new();
 static CALLBACK: OnceLock<Box<dyn Fn(Action) + Send + Sync>> = OnceLock::new();
 static START: OnceLock<Instant> = OnceLock::new();
 static TRIG: AtomicU8 = AtomicU8::new(0);
+static PAUSED: AtomicBool = AtomicBool::new(false);
+
+/// Suspend/resume the hotkey without uninstalling the hook (tray Pause).
+pub fn set_paused(paused: bool) {
+    PAUSED.store(paused, Ordering::Relaxed);
+}
 
 fn now_ms() -> u64 {
     START.get_or_init(Instant::now).elapsed().as_millis() as u64
@@ -87,6 +93,9 @@ fn physically_down(t: Trigger) -> bool {
 }
 
 fn fire(action: Action) {
+    if PAUSED.load(Ordering::Relaxed) {
+        return; // hotkey suspended from the tray
+    }
     if let Some(cb) = CALLBACK.get() {
         cb(action);
     }

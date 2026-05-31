@@ -9,6 +9,7 @@ pub fn tooltip_for(state: &str) -> String {
         "transcribing" => "transcribing",
         "error" => "error",
         "loading" => "loading…",
+        "paused" => "paused (hotkey off)",
         _ => "idle",
     };
     format!("murmur — {label}")
@@ -32,5 +33,10 @@ mod tests {
     #[test]
     fn unknown_state_falls_back_to_idle() {
         assert!(tooltip_for("whatever").contains("idle"));
+    }
+
+    #[test]
+    fn paused_state_is_labeled() {
+        assert!(tooltip_for("paused").contains("paused"));
     }
 }
