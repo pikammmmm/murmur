@@ -36,3 +36,13 @@
   loop (one bad command can't kill it); recorder stream-leak fix on mic error;
   clipboard always restored (finally); non-panicking tray icon; control-char
   input sanitization; durable `sidecar.log`; error handling on every UI call.
+
+## Phase 4 — content awareness + recording indicator
+- **Content-aware formatting:** detects email-shaped speech ("dear …", "regards,",
+  "send an email", "subject:") and shopping/to-do lists ("shopping list",
+  "I need to buy", enumerated items) and formats accordingly, overriding the
+  per-app profile. Offline lists become bullets; the LLM refines when keys are set.
+- **Recording-indicator overlay:** a transparent, always-on-top, click-through
+  "blob" (Wispr-style) that pulses blue while you hold to speak and breathes while
+  transcribing. Toggleable in settings.
+- **More keybind options:** Right Alt and Caps Lock, alongside the default hold-Shift.
