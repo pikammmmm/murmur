@@ -20,6 +20,7 @@ from .corrections import (
     upsert,
 )
 from .formatter.base import format_text
+from .grammar import fix_grammar
 from .stt.base import transcribe_with_fallback
 
 log = logging.getLogger("murmur.app")
@@ -28,7 +29,7 @@ log = logging.getLogger("murmur.app")
 class App:
     def __init__(
         self, recorder, transcriber, fallback, formatter, type_text, detect,
-        dict_terms=None, entries=None, corrections_path=None,
+        dict_terms=None, entries=None, corrections_path=None, format_mode="faithful",
         sample_rate=16000, max_seconds=60,
         emit_state=None, emit_transcript=None, emit_error=None,
         emit_last_raw=None, emit_corrections=None, use_threads=True,
@@ -42,6 +43,7 @@ class App:
         self.dict_terms = dict_terms or []
         self.entries = entries or []
         self.corrections_path = corrections_path
+        self.format_mode = format_mode
         self.sample_rate = sample_rate
         self.max_seconds = max_seconds
         self._emit_state = emit_state or events.state
@@ -109,6 +111,7 @@ class App:
         self.transcriber, self.fallback = make_transcriber(cfg, keys)
         self.formatter = make_formatter(cfg, keys)
         self.dict_terms = cfg.get("dictionary", [])
+        self.format_mode = cfg.get("formatter", {}).get("mode", "faithful")
         self.max_seconds = cfg.get("max_recording_seconds", 60)
         self._rebuild()
 
@@ -171,7 +174,9 @@ class App:
             if self._emit_last_raw:
                 self._emit_last_raw(raw)
             corrected = self.corrector.correct(raw) if self.corrector else raw
-            text = format_text(self.formatter, corrected, profile, self.dict_terms)
+            if self.format_mode == "grammar":
+                corrected = fix_grammar(corrected)
+            text = format_text(self.formatter, corrected, profile, self.dict_terms, self.format_mode)
             if text:
                 try:
                     self.type_text(text)
@@ -209,6 +214,7 @@ def build_app(cfg, keys, corrections_path=None, **overrides):
         dict_terms=cfg.get("dictionary", []),
         entries=entries,
         corrections_path=corrections_path,
+        format_mode=cfg.get("formatter", {}).get("mode", "faithful"),
         max_seconds=cfg.get("max_recording_seconds", 60),
         emit_last_raw=events.last_raw,
         emit_corrections=events.corrections,

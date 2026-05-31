@@ -16,10 +16,10 @@ log = logging.getLogger("murmur.formatter")
 MAX_EXPANSION = 4
 
 
-def format_text(formatter, raw, profile, dict_terms):
+def format_text(formatter, raw, profile, dict_terms, mode="faithful"):
     if not raw or not raw.strip():
         return ""
-    system, user = build_messages(raw, profile, dict_terms)
+    system, user = build_messages(raw, profile, dict_terms, mode)
     try:
         out = formatter.complete(system, user)
     except Exception as exc:

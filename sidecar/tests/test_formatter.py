@@ -62,3 +62,17 @@ def test_anthropic_with_key_builds_formatter(tmp_path):
     cfg = load_config(tmp_path / "n.json")
     f = make_formatter(cfg, {"anthropic": "k"})
     assert type(f).__name__ == "AnthropicFormatter"
+
+
+def test_grammar_mode_adds_grammar_instructions():
+    f = Echo("x")
+    format_text(f, "raw", "generic", [], mode="grammar")
+    system, _ = f.seen
+    assert "didn't" in system.lower()  # grammar guard mentions did/didn't
+
+
+def test_faithful_mode_forbids_paraphrase():
+    f = Echo("x")
+    format_text(f, "raw", "generic", [], mode="faithful")
+    system, _ = f.seen
+    assert "must not paraphrase" in system.lower()
