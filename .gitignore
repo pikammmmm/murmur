@@ -1,0 +1,28 @@
+# secrets & local runtime state — never commit
+config.json
+*.log
+
+# python sidecar
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+
+# rust / tauri
+/target/
+**/target/
+src-tauri/target/
+
+# node / tauri frontend
+node_modules/
+dist-ssr/
+.vite/
+
+# os / editor
+Thumbs.db
+.DS_Store
+.idea/
+.vscode/
