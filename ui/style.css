@@ -26,6 +26,12 @@ header .sub { color: var(--muted); font-size: 12px; }
 
 main { padding: 16px 20px; }
 
+.banner {
+  background: #2a1f12; border: 1px solid #6b4f1f; color: #e7c87a;
+  border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; font-size: 13px; line-height: 1.45;
+}
+.banner b { color: #ffd479; }
+
 section {
   background: var(--panel);
   border: 1px solid var(--border);

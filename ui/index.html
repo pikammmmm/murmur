@@ -13,6 +13,10 @@
     </header>
 
     <main>
+      <div id="offline-banner" class="banner" style="display:none">
+        No API keys set — running <b>offline</b> (local transcription, no AI cleanup).
+        Add a Groq or Anthropic key below to enable fast cloud STT + grammar/formatting.
+      </div>
       <section>
         <h2>Speech-to-text</h2>
         <label>Provider
@@ -26,6 +30,28 @@
           <input type="checkbox" id="accuracy" />
           <span>Accuracy mode (force OpenAI gpt-4o-transcribe)</span>
         </label>
+        <div class="grid">
+          <label>Language
+            <select id="language">
+              <option value="en">English</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+              <option value="it">Italian</option>
+              <option value="pt">Portuguese</option>
+              <option value="nl">Dutch</option>
+              <option value="ru">Russian</option>
+              <option value="zh">Chinese</option>
+              <option value="ja">Japanese</option>
+              <option value="ko">Korean</option>
+              <option value="hi">Hindi</option>
+              <option value="ar">Arabic</option>
+            </select>
+          </label>
+          <label>Max recording (s)
+            <input type="number" id="max-rec" min="5" max="600" step="5" />
+          </label>
+        </div>
       </section>
 
       <section>

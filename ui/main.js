@@ -26,6 +26,10 @@ async function load() {
 function render() {
   $("stt-provider").value = cfg.stt.provider;
   $("accuracy").checked = cfg.stt.accuracy_mode;
+  $("language").value = cfg.stt.language || "en";
+  $("max-rec").value = cfg.max_recording_seconds || 60;
+  const hasKey = !!(cfg.keys.groq || cfg.keys.openai || cfg.keys.anthropic || cfg.keys.cerebras);
+  $("offline-banner").style.display = hasKey ? "none" : "block";
   $("fmt-provider").value = cfg.formatter.provider;
   $("fmt-mode").value = cfg.formatter.mode;
   $("voice-commands").checked = cfg.voice_commands !== false;
@@ -66,6 +70,8 @@ function renderDict() {
 function collect() {
   cfg.stt.provider = $("stt-provider").value;
   cfg.stt.accuracy_mode = $("accuracy").checked;
+  cfg.stt.language = $("language").value;
+  cfg.max_recording_seconds = parseInt($("max-rec").value, 10) || 60;
   cfg.formatter.provider = $("fmt-provider").value;
   cfg.formatter.mode = $("fmt-mode").value;
   cfg.voice_commands = $("voice-commands").checked;
