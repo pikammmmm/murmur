@@ -102,3 +102,30 @@ def test_learn_persists_to_disk(tmp_path):
 def test_learn_with_no_prior_dictation_is_noop(tmp_path):
     app, _ = build([], "whatever", tmp_path)
     assert app.learn("anything") == []  # last_raw empty -> nothing to diff
+
+
+def test_stdin_loop_parses_correction_commands():
+    import io
+
+    from murmur_sidecar.app import stdin_command_loop
+
+    class FakeApp:
+        def __init__(self):
+            self.calls = []
+
+        def add_correction(self, w, r):
+            self.calls.append(("add", w, r))
+
+        def remove_correction(self, w):
+            self.calls.append(("del", w))
+
+        def learn(self, t):
+            self.calls.append(("learn", t))
+
+    app = FakeApp()
+    # tab between wrong/right; arg case + spaces must be preserved
+    stream = io.StringIO("correctadd glass bar\tglassbar\ncorrectdel pika\nlearn Open GlassBar now\nquit\n")
+    stdin_command_loop(app, stream=stream)
+    assert ("add", "glass bar", "glassbar") in app.calls
+    assert ("del", "pika") in app.calls
+    assert ("learn", "Open GlassBar now") in app.calls

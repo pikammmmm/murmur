@@ -51,3 +51,56 @@ def test_sidecar_boots_to_idle_and_quits(tmp_path):
         if proc.poll() is None:
             proc.kill()
     assert proc.returncode is not None
+
+
+@pytest.mark.slow
+def test_sidecar_manual_correction_roundtrip(tmp_path):
+    cfg = tmp_path / "config.json"
+    cfg.write_text(json.dumps({
+        "stt": {"provider": "local", "local_model": "base"},
+        "formatter": {"provider": "off"},
+    }))
+    env = dict(os.environ)
+    env["MURMUR_CONFIG"] = str(cfg)
+    main_py = Path(__file__).resolve().parent.parent / "main.py"
+    proc = subprocess.Popen(
+        [sys.executable, str(main_py)],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        text=True, env=env, bufsize=1,
+    )
+
+    def read_until(pred, limit=50):
+        for _ in range(limit):
+            line = proc.stdout.readline()
+            if not line:
+                return None
+            try:
+                evt = json.loads(line)
+            except ValueError:
+                continue
+            if pred(evt):
+                return evt
+        return None
+
+    try:
+        assert read_until(lambda e: e.get("state") == "idle") is not None
+        read_until(lambda e: e.get("type") == "corrections")  # consume startup snapshot
+
+        proc.stdin.write("correctadd pika\tPikammmmm\n")
+        proc.stdin.flush()
+        ev = read_until(lambda e: e.get("type") == "corrections")
+        assert ev is not None
+        assert any(en["wrong"] == "pika" and en["right"] == "Pikammmmm" for en in ev["entries"])
+
+        proc.stdin.write("correctdel pika\n")
+        proc.stdin.flush()
+        ev2 = read_until(lambda e: e.get("type") == "corrections")
+        assert ev2 is not None
+        assert not any(en["wrong"] == "pika" for en in ev2["entries"])
+
+        proc.stdin.write("quit\n")
+        proc.stdin.flush()
+        proc.wait(timeout=15)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
