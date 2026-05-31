@@ -15,6 +15,7 @@ dist/
 /target/
 **/target/
 src-tauri/target/
+src-tauri/gen/
 
 # node / tauri frontend
 node_modules/
