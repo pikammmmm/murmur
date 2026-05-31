@@ -12,7 +12,7 @@ from pathlib import Path
 # A complete default config. Mirrors docs/superpowers/specs §7. Every key the
 # sidecar reads MUST appear here so deep-merge guarantees its presence.
 DEFAULTS = {
-    "hotkey": {"key": "shift", "side": "either", "hold_threshold_ms": 350},
+    "hotkey": {"key": "backslash", "side": "either", "hold_threshold_ms": 350},
     "stt": {
         "provider": "groq",            # groq | openai | local
         "accuracy_mode": False,        # true -> use the openai gpt-4o-transcribe path

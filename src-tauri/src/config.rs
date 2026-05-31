@@ -19,7 +19,7 @@ pub fn config_path() -> std::io::Result<PathBuf> {
     Ok(data_dir()?.join("config.json"))
 }
 
-fn d_key() -> String { "shift".into() }
+fn d_key() -> String { "backslash".into() }
 fn d_side() -> String { "either".into() }
 fn d_threshold() -> u64 { 350 }
 fn d_stt_provider() -> String { "groq".into() }
@@ -184,7 +184,7 @@ mod tests {
         assert_eq!(c.stt.provider, "groq");
         assert_eq!(c.formatter.provider, "anthropic");
         assert_eq!(c.formatter.model, "claude-haiku-4-5-20251001");
-        assert_eq!(c.hotkey.key, "shift");
+        assert_eq!(c.hotkey.key, "backslash");
         assert_eq!(c.hotkey.hold_threshold_ms, 350);
     }
 

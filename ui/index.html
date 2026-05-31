@@ -92,10 +92,11 @@
         <div class="grid">
           <label>Key
             <select id="hotkey-key">
+              <option value="backslash">Backslash \ (tap still types \)</option>
               <option value="shift">Shift</option>
-              <option value="rctrl">Right Ctrl (no delay)</option>
-              <option value="ralt">Right Alt (no delay)</option>
-              <option value="capslock">Caps Lock (no delay)</option>
+              <option value="rctrl">Right Ctrl</option>
+              <option value="ralt">Right Alt</option>
+              <option value="capslock">Caps Lock</option>
             </select>
           </label>
           <label>Side
@@ -109,7 +110,7 @@
             <input type="number" id="threshold" min="0" max="2000" step="50" />
           </label>
         </div>
-        <p class="hint">Hold the key alone past the delay to record; release to transcribe. (Hotkey changes apply live.)</p>
+        <p class="hint">Hold the key to talk; release to transcribe. With Backslash, a quick tap still types a "\\"; only a held press records. (Changes apply live.)</p>
         <label class="row">
           <input type="checkbox" id="autostart" />
           <span>Start murmur automatically when I log in</span>

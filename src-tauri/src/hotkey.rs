@@ -12,11 +12,16 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use windows::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
-use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    GetAsyncKeyState, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP,
+    VIRTUAL_KEY,
+};
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, DispatchMessageW, GetMessageW, SetWindowsHookExW, TranslateMessage, HHOOK,
     KBDLLHOOKSTRUCT, MSG, WH_KEYBOARD_LL, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
 };
+
+const LLKHF_INJECTED: u32 = 0x10;
 
 use crate::ptt::{Action, PttState};
 
@@ -26,6 +31,7 @@ const VK_RSHIFT: u32 = 0xA1;
 const VK_RCONTROL: u32 = 0xA3;
 const VK_RMENU: u32 = 0xA5; // right Alt
 const VK_CAPITAL: u32 = 0x14; // Caps Lock
+const VK_OEM_5: u32 = 0xDC; // the '\' key (US layout)
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -36,6 +42,7 @@ pub enum Trigger {
     RightCtrl = 3,
     RightAlt = 4,
     CapsLock = 5,
+    Backslash = 6,
 }
 
 pub fn trigger_from_config(key: &str, side: &str) -> Trigger {
@@ -48,8 +55,15 @@ pub fn trigger_from_config(key: &str, side: &str) -> Trigger {
         "rctrl" | "right-ctrl" | "rightctrl" => Trigger::RightCtrl,
         "ralt" | "right-alt" | "rightalt" => Trigger::RightAlt,
         "capslock" | "caps" => Trigger::CapsLock,
-        _ => Trigger::ShiftEither,
+        "backslash" | "\\" => Trigger::Backslash,
+        _ => Trigger::Backslash,
     }
+}
+
+/// A "text" trigger produces a character, so we suppress it and synthesize a tap
+/// when held only briefly (vs. observed-only modifier keys like Shift).
+fn is_text_key(t: Trigger) -> bool {
+    matches!(t, Trigger::Backslash)
 }
 
 fn is_trigger(vk: u32, t: Trigger) -> bool {
@@ -60,6 +74,7 @@ fn is_trigger(vk: u32, t: Trigger) -> bool {
         Trigger::RightCtrl => vk == VK_RCONTROL,
         Trigger::RightAlt => vk == VK_RMENU,
         Trigger::CapsLock => vk == VK_CAPITAL,
+        Trigger::Backslash => vk == VK_OEM_5,
     }
 }
 
@@ -71,7 +86,27 @@ fn trigger_vks(t: Trigger) -> &'static [i32] {
         Trigger::RightCtrl => &[VK_RCONTROL as i32],
         Trigger::RightAlt => &[VK_RMENU as i32],
         Trigger::CapsLock => &[VK_CAPITAL as i32],
+        Trigger::Backslash => &[VK_OEM_5 as i32],
     }
+}
+
+/// Synthesize a real keypress (used to "type" the trigger char after a short
+/// tap). Marked injected so our own hook ignores it.
+unsafe fn synth_key(vk: u16) {
+    let mk = |key_up: bool| INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: VIRTUAL_KEY(vk),
+                wScan: 0,
+                dwFlags: if key_up { KEYEVENTF_KEYUP } else { Default::default() },
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    };
+    let inputs = [mk(false), mk(true)];
+    SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
 }
 
 static STATE: OnceLock<Mutex<PttState>> = OnceLock::new();
@@ -79,6 +114,8 @@ static CALLBACK: OnceLock<Box<dyn Fn(Action) + Send + Sync>> = OnceLock::new();
 static START: OnceLock<Instant> = OnceLock::new();
 static TRIG: AtomicU8 = AtomicU8::new(0);
 static PAUSED: AtomicBool = AtomicBool::new(false);
+// For a text trigger: true while the key is physically down + suppressed.
+static PENDING: AtomicBool = AtomicBool::new(false);
 
 /// Suspend/resume the hotkey without uninstalling the hook (tray Pause).
 pub fn set_paused(paused: bool) {
@@ -96,6 +133,7 @@ fn current_trigger() -> Trigger {
         3 => Trigger::RightCtrl,
         4 => Trigger::RightAlt,
         5 => Trigger::CapsLock,
+        6 => Trigger::Backslash,
         _ => Trigger::ShiftEither,
     }
 }
@@ -161,7 +199,9 @@ fn timer_loop() {
             let mut st = state.lock().unwrap();
             if (st.is_recording() || st.is_armed()) && !physically_down(trig) {
                 // Missed key-up (e.g. elevated window had focus) — self-heal.
-                st.on_trigger_up(now)
+                let a = st.on_trigger_up(now);
+                PENDING.store(false, Ordering::SeqCst); // clear any stuck text-key state
+                a
             } else {
                 st.on_tick(now)
             }
@@ -177,31 +217,63 @@ unsafe extern "system" fn hook_proc(code: i32, w: WPARAM, l: LPARAM) -> LRESULT 
         return CallNextHookEx(None, code, w, l);
     }
     let kb = &*(l.0 as *const KBDLLHOOKSTRUCT);
+    // Ignore our own synthesized keystrokes (the tap re-injection).
+    if (kb.flags.0 & LLKHF_INJECTED) != 0 {
+        return CallNextHookEx(None, code, w, l);
+    }
     let vk = kb.vkCode;
     let msg = w.0 as u32;
+    let down = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
+    let up = msg == WM_KEYUP || msg == WM_SYSKEYUP;
     let trig = current_trigger();
-    if let Some(state) = STATE.get() {
-        let now = now_ms();
-        let action = {
-            let mut st = state.lock().unwrap();
-            if msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN {
-                if is_trigger(vk, trig) {
-                    st.on_trigger_down(now);
-                } else {
-                    st.on_other_key(now);
+    let Some(state) = STATE.get() else {
+        return CallNextHookEx(None, code, w, l);
+    };
+    let now = now_ms();
+
+    if is_text_key(trig) {
+        // Dual-function text key (e.g. '\'): suppress it. Hold past the threshold
+        // = push-to-talk; a quick tap = synthesize the character so typing works.
+        if is_trigger(vk, trig) {
+            if down {
+                if !PENDING.swap(true, Ordering::SeqCst) {
+                    state.lock().unwrap().on_trigger_down(now);
                 }
-                None
-            } else if (msg == WM_KEYUP || msg == WM_SYSKEYUP) && is_trigger(vk, trig) {
-                st.on_trigger_up(now)
-            } else {
-                None
+                return LRESULT(1); // swallow (incl. auto-repeat)
             }
-        };
-        if let Some(a) = action {
-            fire(a);
+            if up {
+                let act = state.lock().unwrap().on_trigger_up(now);
+                PENDING.store(false, Ordering::SeqCst);
+                if matches!(act, Some(Action::StopRecording)) {
+                    fire(Action::StopRecording);
+                } else {
+                    synth_key(VK_OEM_5 as u16); // it was a tap — type the '\'
+                }
+                return LRESULT(1);
+            }
         }
+        return CallNextHookEx(None, code, w, l); // other keys untouched
     }
-    // Never suppress — let the keystroke through so typing/capitalization works.
+
+    // Observed-only modifier trigger (Shift/Ctrl/Alt/Caps): never suppressed.
+    let action = {
+        let mut st = state.lock().unwrap();
+        if down {
+            if is_trigger(vk, trig) {
+                st.on_trigger_down(now);
+            } else {
+                st.on_other_key(now);
+            }
+            None
+        } else if up && is_trigger(vk, trig) {
+            st.on_trigger_up(now)
+        } else {
+            None
+        }
+    };
+    if let Some(a) = action {
+        fire(a);
+    }
     CallNextHookEx(None, code, w, l)
 }
 
@@ -217,7 +289,17 @@ mod tests {
         assert_eq!(trigger_from_config("rctrl", ""), Trigger::RightCtrl);
         assert_eq!(trigger_from_config("ralt", ""), Trigger::RightAlt);
         assert_eq!(trigger_from_config("capslock", ""), Trigger::CapsLock);
-        assert_eq!(trigger_from_config("whatever", ""), Trigger::ShiftEither);
+        assert_eq!(trigger_from_config("backslash", ""), Trigger::Backslash);
+        assert_eq!(trigger_from_config("\\", ""), Trigger::Backslash);
+        assert_eq!(trigger_from_config("whatever", ""), Trigger::Backslash); // default is now '\'
+    }
+
+    #[test]
+    fn backslash_is_a_text_key() {
+        assert!(is_text_key(Trigger::Backslash));
+        assert!(!is_text_key(Trigger::ShiftEither));
+        assert!(is_trigger(VK_OEM_5, Trigger::Backslash));
+        assert!(!is_trigger(VK_SHIFT, Trigger::Backslash));
     }
 
     #[test]
