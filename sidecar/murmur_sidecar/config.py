@@ -34,6 +34,7 @@ DEFAULTS = {
     "voice_commands": True,        # spoken "new paragraph"/"scratch that"/etc.
     "audio_cues": True,            # beep on record start/stop/error
     "inject_mode": "type",         # type | paste (clipboard + Ctrl+V)
+    "save_history": True,          # keep a local dictation history + stats
     "dictionary": [],
     "profiles": {},                    # optional per-exe profile overrides
 }

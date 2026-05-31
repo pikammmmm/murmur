@@ -17,6 +17,7 @@ function render() {
   $("voice-commands").checked = cfg.voice_commands !== false;
   $("audio-cues").checked = cfg.audio_cues !== false;
   $("inject-mode").value = cfg.inject_mode || "type";
+  $("save-history").checked = cfg.save_history !== false;
   $("hotkey-key").value = cfg.hotkey.key;
   $("hotkey-side").value = cfg.hotkey.side;
   $("threshold").value = cfg.hotkey.hold_threshold_ms;
@@ -52,6 +53,7 @@ function collect() {
   cfg.voice_commands = $("voice-commands").checked;
   cfg.audio_cues = $("audio-cues").checked;
   cfg.inject_mode = $("inject-mode").value;
+  cfg.save_history = $("save-history").checked;
   cfg.hotkey.key = $("hotkey-key").value;
   cfg.hotkey.side = $("hotkey-side").value;
   cfg.hotkey.hold_threshold_ms = parseInt($("threshold").value, 10) || 350;
@@ -141,6 +143,30 @@ $("teach-save").onclick = async () => {
   }
 };
 
+// ---- history & stats ----
+async function loadHistory() {
+  const [stats, hist] = await Promise.all([invoke("get_stats"), invoke("get_history")]);
+  const words = stats.words || 0;
+  const dictations = stats.dictations || 0;
+  const minSaved = Math.round(words * (1 / 40 - 1 / 150));
+  $("stats-line").textContent = `${dictations} dictations · ${words} words · ~${minSaved} min saved vs typing`;
+  const ul = $("history");
+  ul.innerHTML = "";
+  (hist || []).forEach((e) => {
+    const li = document.createElement("li");
+    const text = (e.text || "").slice(0, 120);
+    li.className = "hist";
+    li.textContent = text || "(empty)";
+    ul.appendChild(li);
+  });
+}
+
+$("clear-history").onclick = async () => {
+  await invoke("clear_history");
+  setTimeout(loadHistory, 250);
+};
+
 load();
 loadCorrections();
 reloadLast();
+loadHistory();

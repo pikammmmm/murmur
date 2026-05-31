@@ -116,6 +116,9 @@ fn main() {
             commands::add_correction,
             commands::remove_correction,
             commands::teach_last,
+            commands::get_history,
+            commands::get_stats,
+            commands::clear_history,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

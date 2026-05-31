@@ -93,3 +93,45 @@ pub fn teach_last(text: String, state: State<AppState>) {
         state.supervisor.send(&format!("learn {t}"));
     }
 }
+
+// --- history & stats --------------------------------------------------------
+// The sidecar writes history.jsonl / stats.json next to config.json; these
+// commands read them for the settings view (clear goes through the sidecar).
+
+fn data_dir_of(state: &AppState) -> std::path::PathBuf {
+    state.config_path.parent().map(|p| p.to_path_buf()).unwrap_or_default()
+}
+
+#[tauri::command]
+pub fn get_history(state: State<AppState>) -> Vec<serde_json::Value> {
+    let path = data_dir_of(&state).join("history.jsonl");
+    let mut out: Vec<serde_json::Value> = Vec::new();
+    if let Ok(text) = std::fs::read_to_string(&path) {
+        for line in text.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
+                out.push(v);
+            }
+        }
+    }
+    out.reverse(); // newest first
+    out.truncate(50);
+    out
+}
+
+#[tauri::command]
+pub fn get_stats(state: State<AppState>) -> serde_json::Value {
+    let path = data_dir_of(&state).join("stats.json");
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_else(|| serde_json::json!({"dictations": 0, "words": 0}))
+}
+
+#[tauri::command]
+pub fn clear_history(state: State<AppState>) {
+    state.supervisor.send("clearhistory");
+}

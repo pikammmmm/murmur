@@ -9,8 +9,9 @@ whole pipeline is unit-testable without a mic, network, or models.
 """
 import logging
 import threading
+import time
 
-from . import cues, events
+from . import cues, events, history
 from .corrections import (
     Corrector,
     build_bias_string,
@@ -31,7 +32,8 @@ class App:
     def __init__(
         self, recorder, transcriber, fallback, formatter, type_text, detect,
         dict_terms=None, entries=None, corrections_path=None, format_mode="faithful",
-        voice_commands=True, audio_cues=True, sample_rate=16000, max_seconds=60,
+        voice_commands=True, audio_cues=True, save_history=True,
+        history_path=None, stats_path=None, sample_rate=16000, max_seconds=60,
         emit_state=None, emit_transcript=None, emit_error=None,
         emit_last_raw=None, emit_corrections=None, use_threads=True,
     ):
@@ -47,6 +49,9 @@ class App:
         self.format_mode = format_mode
         self.voice_commands = voice_commands
         self.audio_cues = audio_cues
+        self.save_history = save_history
+        self.history_path = history_path
+        self.stats_path = stats_path
         self.sample_rate = sample_rate
         self.max_seconds = max_seconds
         self._emit_state = emit_state or events.state
@@ -123,6 +128,7 @@ class App:
         self.format_mode = cfg.get("formatter", {}).get("mode", "faithful")
         self.voice_commands = cfg.get("voice_commands", True)
         self.audio_cues = cfg.get("audio_cues", True)
+        self.save_history = cfg.get("save_history", True)
         self.max_seconds = cfg.get("max_recording_seconds", 60)
         self._rebuild()
 
@@ -162,6 +168,24 @@ class App:
         if self._emit_corrections:
             self._emit_corrections(self.entries)
 
+    def _record_history(self, text, profile):
+        if not self.save_history or not self.history_path:
+            return
+        words = len(text.split())
+        try:
+            history.append_history(self.history_path, {
+                "ts": time.time(), "raw": self.last_raw, "text": text,
+                "profile": profile, "words": words,
+            })
+            if self.stats_path:
+                history.update_stats(self.stats_path, words)
+        except OSError as exc:
+            log.warning("history write failed: %s", exc)
+
+    def clear_history(self):
+        if self.history_path and self.stats_path:
+            history.clear(self.history_path, self.stats_path)
+
     # --- internals --------------------------------------------------------
     def _arm_max_timer(self):
         if self.max_seconds and self.use_threads:
@@ -198,6 +222,7 @@ class App:
                 except Exception as exc:
                     self._emit_error(f"type failed: {exc}")
                 self._emit_transcript(text)
+                self._record_history(text, profile)
         except Exception as exc:
             log.exception("processing failed")
             if self.audio_cues:
@@ -218,9 +243,14 @@ def build_app(cfg, keys, corrections_path=None, **overrides):
     from .recorder import Recorder
     from .stt.base import make_transcriber
 
+    from pathlib import Path
+
     transcriber, fallback = make_transcriber(cfg, keys)
     formatter = make_formatter(cfg, keys)
     entries = load_store(corrections_path) if corrections_path else []
+    base = Path(corrections_path).parent if corrections_path else None
+    history_path = str(base / "history.jsonl") if base else None
+    stats_path = str(base / "stats.json") if base else None
     return App(
         recorder=overrides.get("recorder") or Recorder(),
         transcriber=transcriber,
@@ -234,6 +264,9 @@ def build_app(cfg, keys, corrections_path=None, **overrides):
         format_mode=cfg.get("formatter", {}).get("mode", "faithful"),
         voice_commands=cfg.get("voice_commands", True),
         audio_cues=cfg.get("audio_cues", True),
+        save_history=cfg.get("save_history", True),
+        history_path=history_path,
+        stats_path=stats_path,
         max_seconds=cfg.get("max_recording_seconds", 60),
         emit_last_raw=events.last_raw,
         emit_corrections=events.corrections,
@@ -266,6 +299,8 @@ def stdin_command_loop(app, stream=None, on_reload=None):
                 app.add_correction(wrong, right)
         elif verb == "correctdel":
             app.remove_correction(arg)
+        elif verb == "clearhistory":
+            app.clear_history()
         elif verb == "snapshot":
             app.snapshot()
         elif verb == "reload":

@@ -67,6 +67,38 @@ def test_faithful_mode_leaves_grammar_alone(tmp_path):
     assert typed[-1] == "he don't know"  # verbatim — no grammar change offline
 
 
+def test_dictation_recorded_to_history_and_stats(tmp_path):
+    from murmur_sidecar import history as H
+
+    typed = []
+    app = App(
+        recorder=Rec(np.ones(10, dtype=np.float32)),
+        transcriber=FixedT("hello world"),
+        fallback=None,
+        formatter=Passthrough(),
+        type_text=lambda x: typed.append(x),
+        detect=lambda: ("generic", "", ""),
+        entries=[],
+        corrections_path=str(tmp_path / "c.json"),
+        save_history=True,
+        history_path=str(tmp_path / "h.jsonl"),
+        stats_path=str(tmp_path / "s.json"),
+        max_seconds=0,
+        emit_state=lambda s: None,
+        emit_transcript=lambda x: None,
+        emit_error=lambda m: None,
+        use_threads=False,
+    )
+    app.start()
+    app.stop()
+    items = H.load_history(tmp_path / "h.jsonl")
+    assert len(items) == 1 and items[0]["text"] == "hello world" and items[0]["words"] == 2
+    assert H.load_stats(tmp_path / "s.json")["words"] == 2
+
+    app.clear_history()
+    assert H.load_history(tmp_path / "h.jsonl") == []
+
+
 def test_learned_exact_correction_applies_to_dictation(tmp_path):
     app, typed = build(
         [{"wrong": "glass bar", "right": "glassbar", "count": 3, "source": "learned"}],
