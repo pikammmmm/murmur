@@ -12,11 +12,15 @@ use std::sync::{Arc, Mutex};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum SidecarEvent {
     State(String),
     Transcript(String),
     Error(String),
+    /// Raw (pre-correction) STT of the last dictation — for the "teach" box.
+    LastRaw(String),
+    /// Current correction/pronunciation entries (a JSON array) — for the UI.
+    Corrections(serde_json::Value),
 }
 
 /// Parse one stdout line into an event. Returns None for blank/foreign lines.
@@ -26,6 +30,10 @@ pub fn parse_event(line: &str) -> Option<SidecarEvent> {
         "state" => Some(SidecarEvent::State(v.get("state")?.as_str()?.to_string())),
         "transcript" => Some(SidecarEvent::Transcript(v.get("text").and_then(|x| x.as_str()).unwrap_or("").to_string())),
         "error" => Some(SidecarEvent::Error(v.get("message").and_then(|x| x.as_str()).unwrap_or("").to_string())),
+        "last_raw" => Some(SidecarEvent::LastRaw(v.get("text").and_then(|x| x.as_str()).unwrap_or("").to_string())),
+        "corrections" => Some(SidecarEvent::Corrections(
+            v.get("entries").cloned().unwrap_or_else(|| serde_json::Value::Array(vec![])),
+        )),
         _ => None,
     }
 }
@@ -146,6 +154,18 @@ mod tests {
         assert_eq!(parse_event("not json"), None);
         assert_eq!(parse_event(r#"{"type":"other"}"#), None);
         assert_eq!(parse_event(r#"{"no_type":true}"#), None);
+    }
+
+    #[test]
+    fn parses_last_raw_and_corrections() {
+        assert_eq!(
+            parse_event(r#"{"type":"last_raw","text":"open glass bar"}"#),
+            Some(SidecarEvent::LastRaw("open glass bar".into()))
+        );
+        match parse_event(r#"{"type":"corrections","entries":[{"wrong":"a","right":"b"}]}"#) {
+            Some(SidecarEvent::Corrections(v)) => assert!(v.is_array() && v.as_array().unwrap().len() == 1),
+            other => panic!("expected Corrections, got {other:?}"),
+        }
     }
 
     #[test]

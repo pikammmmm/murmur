@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -24,6 +24,9 @@ pub struct AppState {
     pub config: Mutex<Config>,
     pub config_path: PathBuf,
     pub supervisor: Supervisor,
+    /// Cached from sidecar events so commands can read them synchronously.
+    pub corrections: Arc<Mutex<serde_json::Value>>,
+    pub last_raw: Arc<Mutex<String>>,
 }
 
 /// One running instance only — a named kernel mutex survives across processes
@@ -108,12 +111,23 @@ fn main() {
             commands::set_config,
             commands::add_dict_term,
             commands::remove_dict_term,
+            commands::get_corrections,
+            commands::get_last_raw,
+            commands::add_correction,
+            commands::remove_correction,
+            commands::teach_last,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
 
-            // Sidecar supervisor — forward state events to the tray tooltip.
+            // Shared caches updated from sidecar events (read by commands).
+            let corrections = Arc::new(Mutex::new(serde_json::Value::Array(vec![])));
+            let last_raw = Arc::new(Mutex::new(String::new()));
+
+            // Sidecar supervisor — forward events to the tray + caches.
             let evt_handle = handle.clone();
+            let corr_c = corrections.clone();
+            let raw_c = last_raw.clone();
             let supervisor = Supervisor::start(launch.clone(), move |evt| match evt {
                 SidecarEvent::State(s) => {
                     mlog!("sidecar state: {s}");
@@ -122,6 +136,8 @@ fn main() {
                     }
                 }
                 SidecarEvent::Error(m) => mlog!("sidecar error: {m}"),
+                SidecarEvent::LastRaw(t) => *raw_c.lock().unwrap() = t,
+                SidecarEvent::Corrections(v) => *corr_c.lock().unwrap() = v,
                 SidecarEvent::Transcript(_) => {}
             });
 
@@ -129,6 +145,8 @@ fn main() {
                 config: Mutex::new(cfg.clone()),
                 config_path: config_path.clone(),
                 supervisor,
+                corrections,
+                last_raw,
             });
 
             // Tray icon + menu.

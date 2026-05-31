@@ -81,6 +81,25 @@
         </div>
         <ul id="dict"></ul>
       </section>
+
+      <section>
+        <h2>Pronunciations &amp; corrections</h2>
+        <p class="hint">murmur learns words you fix, and auto-corrects known terms that sound similar to your speech (accent-robust).</p>
+        <div class="addrow">
+          <input type="text" id="corr-wrong" placeholder="heard as…" />
+          <input type="text" id="corr-right" placeholder="should be…" />
+          <button id="add-corr">Add</button>
+        </div>
+        <ul id="corrections"></ul>
+
+        <h3 class="sub-h">Teach the last dictation</h3>
+        <p class="hint">Edit the raw transcript of what you last said into what you meant — murmur learns the difference.</p>
+        <textarea id="teach-box" rows="2" placeholder="(dictate something first, then click Reload)"></textarea>
+        <div class="addrow">
+          <button id="teach-reload">Reload last</button>
+          <button id="teach-save" class="primary">Teach</button>
+        </div>
+      </section>
     </main>
 
     <footer>

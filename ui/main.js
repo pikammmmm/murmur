@@ -72,4 +72,67 @@ $("add-term").onclick = async () => {
 
 $("save").onclick = save;
 
+// ---- pronunciations / corrections ----
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+async function loadCorrections() {
+  const entries = await invoke("get_corrections");
+  const ul = $("corrections");
+  ul.innerHTML = "";
+  (entries || []).forEach((e) => {
+    const li = document.createElement("li");
+    const span = document.createElement("span");
+    span.className = "pair";
+    const src = e.source === "manual" ? " · manual" : "";
+    span.innerHTML = `${escapeHtml(e.wrong)} &rarr; <b>${escapeHtml(e.right)}</b> <span class="cnt">&times;${e.count || 1}${src}</span>`;
+    const btn = document.createElement("button");
+    btn.textContent = "×";
+    btn.title = "Remove";
+    btn.onclick = async () => {
+      await invoke("remove_correction", { wrong: e.wrong });
+      refreshCorrections();
+    };
+    li.appendChild(span);
+    li.appendChild(btn);
+    ul.appendChild(li);
+  });
+}
+
+// Mutations go to the sidecar (single writer); re-read after it persists+emits.
+function refreshCorrections() {
+  setTimeout(loadCorrections, 250);
+}
+
+$("add-corr").onclick = async () => {
+  const wrong = $("corr-wrong").value.trim();
+  const right = $("corr-right").value.trim();
+  if (wrong && right) {
+    await invoke("add_correction", { wrong, right });
+    $("corr-wrong").value = "";
+    $("corr-right").value = "";
+    refreshCorrections();
+  }
+};
+
+async function reloadLast() {
+  $("teach-box").value = (await invoke("get_last_raw")) || "";
+}
+
+$("teach-reload").onclick = reloadLast;
+
+$("teach-save").onclick = async () => {
+  const text = $("teach-box").value.trim();
+  if (text) {
+    await invoke("teach_last", { text });
+    const s = $("status");
+    s.textContent = "Taught ✓";
+    setTimeout(() => (s.textContent = ""), 1500);
+    refreshCorrections();
+  }
+};
+
 load();
+loadCorrections();
+reloadLast();
