@@ -2,9 +2,92 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>murmur</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>murmur settings</title>
+    <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <p>murmur settings (placeholder — wired in Task B6)</p>
+    <header>
+      <h1>murmur</h1>
+      <span class="sub">voice dictation · settings</span>
+    </header>
+
+    <main>
+      <section>
+        <h2>Speech-to-text</h2>
+        <label>Provider
+          <select id="stt-provider">
+            <option value="groq">Groq · whisper-large-v3-turbo (fast, cheap)</option>
+            <option value="openai">OpenAI · gpt-4o-transcribe</option>
+            <option value="local">Local · faster-whisper (offline)</option>
+          </select>
+        </label>
+        <label class="row">
+          <input type="checkbox" id="accuracy" />
+          <span>Accuracy mode (force OpenAI gpt-4o-transcribe)</span>
+        </label>
+      </section>
+
+      <section>
+        <h2>Formatting</h2>
+        <label>Provider
+          <select id="fmt-provider">
+            <option value="anthropic">Claude Haiku 4.5 (faithful, recommended)</option>
+            <option value="groq">Groq (fast mode)</option>
+            <option value="cerebras">Cerebras (fastest)</option>
+            <option value="off">Off (raw transcript)</option>
+          </select>
+        </label>
+        <p class="hint">Faithful cleanup only — fixes punctuation, grammar, fillers; never paraphrases.</p>
+      </section>
+
+      <section>
+        <h2>Hotkey</h2>
+        <div class="grid">
+          <label>Key
+            <select id="hotkey-key">
+              <option value="shift">Shift</option>
+              <option value="rctrl">Right Ctrl (no delay)</option>
+            </select>
+          </label>
+          <label>Side
+            <select id="hotkey-side">
+              <option value="either">Either</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+            </select>
+          </label>
+          <label>Hold delay (ms)
+            <input type="number" id="threshold" min="0" max="2000" step="50" />
+          </label>
+        </div>
+        <p class="hint">Hold the key alone past the delay to record; release to transcribe. (Hotkey changes apply live.)</p>
+      </section>
+
+      <section>
+        <h2>API keys</h2>
+        <p class="hint">Stored locally only. Leave blank to stay offline (local STT + raw transcript).</p>
+        <label>Groq <input type="password" id="k-groq" placeholder="gsk_…" /></label>
+        <label>OpenAI <input type="password" id="k-openai" placeholder="sk-…" /></label>
+        <label>Anthropic <input type="password" id="k-anthropic" placeholder="sk-ant-…" /></label>
+      </section>
+
+      <section>
+        <h2>Custom dictionary</h2>
+        <p class="hint">Names &amp; jargon the recognizer should nail and the formatter must keep verbatim.</p>
+        <div class="addrow">
+          <input type="text" id="new-term" placeholder="e.g. glassbar, Rojo, Luau" />
+          <button id="add-term">Add</button>
+        </div>
+        <ul id="dict"></ul>
+      </section>
+    </main>
+
+    <footer>
+      <button id="save" class="primary">Save</button>
+      <span id="status"></span>
+    </footer>
+
+    <script src="main.js"></script>
   </body>
 </html>
