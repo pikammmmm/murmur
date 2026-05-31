@@ -1,0 +1,85 @@
+"""murmur sidecar entrypoint.
+
+    python main.py            # uses %MURMUR_CONFIG% or the default data-dir path
+    python main.py <config>   # explicit config path
+
+Loads config, builds the pipeline, warms the local model, then runs the stdin
+command loop. JSON events go to stdout; logs go to stderr (stdout is sacred).
+"""
+import logging
+import os
+import sys
+from pathlib import Path
+
+from murmur_sidecar import events
+from murmur_sidecar.app import build_app, stdin_command_loop
+from murmur_sidecar.config import load_config, resolve_keys
+
+log = logging.getLogger("murmur.main")
+
+
+def default_config_path():
+    override = os.environ.get("MURMUR_CONFIG")
+    if override:
+        return Path(override)
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        return Path(appdata) / "murmur" / "murmur" / "data" / "config.json"
+    return Path.home() / ".murmur" / "config.json"
+
+
+def setup_logging():
+    logging.basicConfig(
+        level=logging.INFO,
+        stream=sys.stderr,  # never stdout — that's the event channel
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+    for noisy in ("httpx", "httpcore", "urllib3", "huggingface_hub", "filelock"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+
+
+def _warm(app):
+    """Warm whichever pipeline member is the local model, so the first real
+    dictation doesn't pay the load cost."""
+    candidates = [app.transcriber, app.fallback]
+    for member in candidates:
+        if member is not None and type(member).__name__ == "LocalTranscriber":
+            member.warm()
+            return
+
+
+def main(argv=None):
+    setup_logging()
+    argv = argv if argv is not None else sys.argv[1:]
+    cfg_path = Path(argv[0]) if argv else default_config_path()
+
+    cfg = load_config(cfg_path)
+    keys = resolve_keys(cfg)
+    events.state("loading")
+    log.info("config %s; stt=%s formatter=%s", cfg_path, cfg["stt"]["provider"], cfg["formatter"]["provider"])
+    app = build_app(cfg, keys)
+    try:
+        _warm(app)
+    except Exception as exc:
+        log.warning("warmup failed: %s", exc)
+    events.state("idle")
+    log.info("ready; waiting for commands on stdin")
+
+    def on_reload():
+        new_cfg = load_config(cfg_path)
+        app.apply_config(new_cfg, resolve_keys(new_cfg))
+        log.info("config reloaded")
+        events.state("idle")
+
+    stdin_command_loop(app, on_reload=on_reload)
+    log.info("stdin closed; exiting")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass
+    except Exception as exc:  # last-resort: surface fatal errors as an event
+        logging.getLogger("murmur.main").exception("fatal")
+        events.error(f"fatal: {exc}")
