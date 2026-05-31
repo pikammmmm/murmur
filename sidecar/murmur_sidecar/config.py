@@ -32,6 +32,7 @@ DEFAULTS = {
     "keys": {"groq": None, "openai": None, "anthropic": None, "cerebras": None},
     "max_recording_seconds": 60,
     "voice_commands": True,        # spoken "new paragraph"/"scratch that"/etc.
+    "audio_cues": True,            # beep on record start/stop/error
     "dictionary": [],
     "profiles": {},                    # optional per-exe profile overrides
 }

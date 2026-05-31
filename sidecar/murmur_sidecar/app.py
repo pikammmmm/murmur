@@ -10,7 +10,7 @@ whole pipeline is unit-testable without a mic, network, or models.
 import logging
 import threading
 
-from . import events
+from . import cues, events
 from .corrections import (
     Corrector,
     build_bias_string,
@@ -31,7 +31,7 @@ class App:
     def __init__(
         self, recorder, transcriber, fallback, formatter, type_text, detect,
         dict_terms=None, entries=None, corrections_path=None, format_mode="faithful",
-        voice_commands=True, sample_rate=16000, max_seconds=60,
+        voice_commands=True, audio_cues=True, sample_rate=16000, max_seconds=60,
         emit_state=None, emit_transcript=None, emit_error=None,
         emit_last_raw=None, emit_corrections=None, use_threads=True,
     ):
@@ -46,6 +46,7 @@ class App:
         self.corrections_path = corrections_path
         self.format_mode = format_mode
         self.voice_commands = voice_commands
+        self.audio_cues = audio_cues
         self.sample_rate = sample_rate
         self.max_seconds = max_seconds
         self._emit_state = emit_state or events.state
@@ -77,10 +78,14 @@ class App:
         except Exception as exc:
             with self._lock:
                 self._recording = False
+            if self.audio_cues:
+                cues.error()
             self._emit_error(f"mic open failed: {exc}")
             self._emit_state("idle")
             return
         self._arm_max_timer()
+        if self.audio_cues:
+            cues.record_start()
         self._emit_state("recording")
 
     def stop(self):
@@ -115,6 +120,7 @@ class App:
         self.dict_terms = cfg.get("dictionary", [])
         self.format_mode = cfg.get("formatter", {}).get("mode", "faithful")
         self.voice_commands = cfg.get("voice_commands", True)
+        self.audio_cues = cfg.get("audio_cues", True)
         self.max_seconds = cfg.get("max_recording_seconds", 60)
         self._rebuild()
 
@@ -164,6 +170,8 @@ class App:
     def _process(self):
         try:
             self._emit_state("transcribing")
+            if self.audio_cues:
+                cues.record_stop()
             audio = self.recorder.stop()
             if audio is None or len(audio) == 0:
                 return
@@ -190,6 +198,8 @@ class App:
                 self._emit_transcript(text)
         except Exception as exc:
             log.exception("processing failed")
+            if self.audio_cues:
+                cues.error()
             self._emit_error(f"processing failed: {exc}")
         finally:
             with self._lock:
@@ -221,6 +231,7 @@ def build_app(cfg, keys, corrections_path=None, **overrides):
         corrections_path=corrections_path,
         format_mode=cfg.get("formatter", {}).get("mode", "faithful"),
         voice_commands=cfg.get("voice_commands", True),
+        audio_cues=cfg.get("audio_cues", True),
         max_seconds=cfg.get("max_recording_seconds", 60),
         emit_last_raw=events.last_raw,
         emit_corrections=events.corrections,
