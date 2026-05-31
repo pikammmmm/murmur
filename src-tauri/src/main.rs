@@ -54,6 +54,7 @@ fn resolve_launch(config_path: &PathBuf) -> Launch {
         if let Some(dir) = exe.parent() {
             let frozen = dir.join("murmur-sidecar.exe");
             if frozen.exists() {
+                mlog!("sidecar launch: frozen {}", frozen.display());
                 return Launch { program: frozen, args: vec![], config_path: config_path.clone() };
             }
         }
@@ -61,6 +62,7 @@ fn resolve_launch(config_path: &PathBuf) -> Launch {
     let home = std::env::var("USERPROFILE").unwrap_or_default();
     let py = PathBuf::from(&home).join("murmur").join("sidecar").join(".venv").join("Scripts").join("python.exe");
     let main_py = PathBuf::from(&home).join("murmur").join("sidecar").join("main.py");
+    mlog!("sidecar launch: dev venv {}", py.display());
     Launch {
         program: py,
         args: vec![main_py.to_string_lossy().to_string()],
