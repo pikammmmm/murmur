@@ -11,7 +11,7 @@ import logging
 import threading
 import time
 
-from . import cues, events, history
+from . import cues, events, history, intent
 from .corrections import (
     Corrector,
     build_bias_string,
@@ -232,6 +232,11 @@ class App:
                 corrected = fix_grammar(corrected)
             if self.voice_commands:
                 corrected = apply_voice_commands(corrected)
+            # Content-based override: format as email/list when the speech says so,
+            # regardless of which app is focused.
+            profile = intent.detect_profile(corrected, profile)
+            if profile == "list":
+                corrected = intent.listify(corrected)
             text = format_text(self.formatter, corrected, profile, self.dict_terms, self.format_mode)
             if text:
                 try:

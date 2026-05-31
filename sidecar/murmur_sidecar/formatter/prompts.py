@@ -58,6 +58,12 @@ PROFILE_GUIDANCE = {
         "Context: notes. Produce clean sentences and paragraphs without adding "
         "structure the speaker did not dictate."
     ),
+    "list": (
+        "Context: a list (e.g. shopping or to-do). Format as a bullet list with one "
+        "item per line starting with '- '. Split the items the speaker enumerated "
+        "(commas, 'and', or pauses); drop any leading phrase like 'shopping list' or "
+        "'I need to buy'. Keep items short; add no prose."
+    ),
     "generic": "Context: general text. Produce clean, well-punctuated sentences.",
 }
 

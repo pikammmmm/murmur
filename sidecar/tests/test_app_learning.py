@@ -110,6 +110,14 @@ def test_preview_applies_offline_transforms(tmp_path):
     assert out == "he doesn't know glassbar\n\ndone"
 
 
+def test_spoken_shopping_list_becomes_bullets(tmp_path):
+    # content detection overrides the app profile to 'list' and bullets it offline
+    app, typed = build([], "shopping list milk, eggs, and bread", tmp_path, format_mode="grammar")
+    app.start()
+    app.stop()
+    assert typed[-1] == "- milk\n- eggs\n- bread"
+
+
 def test_learned_exact_correction_applies_to_dictation(tmp_path):
     app, typed = build(
         [{"wrong": "glass bar", "right": "glassbar", "count": 3, "source": "learned"}],
