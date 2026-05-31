@@ -25,11 +25,15 @@ hold Shift (alone, ~350ms)         Rust/Tauri core
 - **STT:** Groq `whisper-large-v3-turbo` (cloud, fast/cheap) by default, with an
   automatic **local `faster-whisper` fallback** when offline. OpenAI
   `gpt-4o-transcribe` is available as an accuracy toggle.
-- **Formatting:** Claude Haiku 4.5 in **faithful-cleanup mode** — fixes
-  punctuation/grammar, removes fillers and false starts, resolves spoken
-  self-corrections, and formats per the active app (email vs chat vs code) — but
-  **never paraphrases, adds, or changes your words**. Falls through to the raw
-  transcript on any error, so dictation never loses your words.
+- **Formatting & grammar:** Claude Haiku 4.5 cleans the transcript per the active
+  app (email vs chat vs code), removes fillers/false starts, and resolves spoken
+  self-corrections. Two modes: **Grammar** (default) also fixes grammatical errors
+  to standard English — subject-verb agreement, tense, did/didn't, don't/doesn't,
+  double negatives, malformed phrases (e.g. "he don't know" → "he doesn't know",
+  "it don't be done" → "it won't be done") — while preserving your meaning;
+  **Faithful** never changes your words. An offline rule pass handles common fixes
+  even with no API key, and on any error it falls through to the raw transcript so
+  words are never lost.
 - **Context:** the active app + window title pick the formatting profile.
 - **Custom dictionary:** your names/jargon bias the recognizer *and* are kept
   verbatim by the formatter.
