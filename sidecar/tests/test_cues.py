@@ -3,8 +3,8 @@ from murmur_sidecar import cues
 
 def test_play_sync_invokes_player_with_pairs():
     got = []
-    cues.play([(440, 50)], player=lambda p: got.append(p), sync=True)
-    assert got == [(440, 50)]
+    cues.play([(440, 50)], player=lambda pairs: got.append(pairs), sync=True)
+    assert got == [[(440, 50)]]  # player receives the full pairs list
 
 
 def test_start_is_ascending_stop_is_descending():
