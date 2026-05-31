@@ -30,4 +30,9 @@
 - Run-at-login toggle (HKCU Run key).
 - Tray Pause/Resume (suspends the hotkey).
 - "Try it" offline preview — see corrections + grammar + voice commands live.
+- Language + max-recording settings; first-run "offline mode" hint.
 - Build script (`build.ps1`) + architecture doc.
+- Hardened via a multi-agent code review: thread-safe `last_raw`; resilient stdin
+  loop (one bad command can't kill it); recorder stream-leak fix on mic error;
+  clipboard always restored (finally); non-panicking tray icon; control-char
+  input sanitization; durable `sidecar.log`; error handling on every UI call.
