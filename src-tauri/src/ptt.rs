@@ -28,6 +28,14 @@ impl PttState {
         self.recording
     }
 
+    pub fn is_armed(&self) -> bool {
+        self.armed_at.is_some()
+    }
+
+    pub fn set_threshold(&mut self, threshold_ms: u64) {
+        self.threshold_ms = threshold_ms;
+    }
+
     /// Trigger key down. Arms the timer; key-repeat does not reset it.
     pub fn on_trigger_down(&mut self, now_ms: u64) {
         if self.recording {
