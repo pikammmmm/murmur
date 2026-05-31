@@ -33,6 +33,7 @@ DEFAULTS = {
     "max_recording_seconds": 60,
     "voice_commands": True,        # spoken "new paragraph"/"scratch that"/etc.
     "audio_cues": True,            # beep on record start/stop/error
+    "inject_mode": "type",         # type | paste (clipboard + Ctrl+V)
     "dictionary": [],
     "profiles": {},                    # optional per-exe profile overrides
 }

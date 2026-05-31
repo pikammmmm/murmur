@@ -1,4 +1,4 @@
-from murmur_sidecar.injector import type_text
+from murmur_sidecar.injector import make_injector, paste_text, type_text
 
 
 class FakeController:
@@ -20,3 +20,29 @@ def test_empty_and_none_are_noops():
     type_text("", controller=c)
     type_text(None, controller=c)
     assert c.typed == []
+
+
+def test_paste_sets_clipboard_pastes_then_restores():
+    state = {"clip": "OLD"}
+    order = []
+    paste_text(
+        "hello",
+        get_clipboard=lambda: state["clip"],
+        set_clipboard=lambda t: state.__setitem__("clip", t),
+        do_paste=lambda: order.append(("paste-while-clip-is", state["clip"])),
+        sleep=lambda _s: None,
+    )
+    assert order == [("paste-while-clip-is", "hello")]  # our text was on the clipboard at paste
+    assert state["clip"] == "OLD"                          # previous clipboard restored
+
+
+def test_paste_empty_is_noop():
+    calls = []
+    paste_text("", do_paste=lambda: calls.append(1), sleep=lambda _s: None)
+    assert calls == []
+
+
+def test_make_injector_selects_mode():
+    assert make_injector("paste") is paste_text
+    assert make_injector("type") is type_text
+    assert make_injector("anything-else") is type_text

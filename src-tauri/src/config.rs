@@ -34,6 +34,7 @@ fn d_fmt_model() -> String { "claude-haiku-4-5-20251001".into() }
 fn d_fmt_mode() -> String { "grammar".into() }
 fn d_max_tokens() -> u32 { 1024 }
 fn d_max_rec() -> u32 { 60 }
+fn d_inject_mode() -> String { "type".into() }
 fn d_profiles() -> serde_json::Value { serde_json::json!({}) }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -125,6 +126,8 @@ pub struct Config {
     pub voice_commands: bool,
     #[serde(default = "d_true")]
     pub audio_cues: bool,
+    #[serde(default = "d_inject_mode")]
+    pub inject_mode: String,
     #[serde(default)]
     pub dictionary: Vec<String>,
     #[serde(default = "d_profiles")]
@@ -135,7 +138,7 @@ impl Default for Config {
         Self {
             hotkey: Hotkey::default(), stt: Stt::default(), formatter: Formatter::default(),
             keys: Keys::default(), max_recording_seconds: d_max_rec(),
-            voice_commands: true, audio_cues: true,
+            voice_commands: true, audio_cues: true, inject_mode: d_inject_mode(),
             dictionary: Vec::new(), profiles: d_profiles(),
         }
     }

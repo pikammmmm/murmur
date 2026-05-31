@@ -114,9 +114,11 @@ class App:
 
     def apply_config(self, cfg, keys):
         from .formatter.base import make_formatter
+        from .injector import make_injector
         from .stt.base import make_transcriber
         self.transcriber, self.fallback = make_transcriber(cfg, keys)
         self.formatter = make_formatter(cfg, keys)
+        self.type_text = make_injector(cfg.get("inject_mode", "type"))
         self.dict_terms = cfg.get("dictionary", [])
         self.format_mode = cfg.get("formatter", {}).get("mode", "faithful")
         self.voice_commands = cfg.get("voice_commands", True)
@@ -212,7 +214,7 @@ def build_app(cfg, keys, corrections_path=None, **overrides):
     from . import context
     from .corrections import load_store
     from .formatter.base import make_formatter
-    from .injector import type_text
+    from .injector import make_injector
     from .recorder import Recorder
     from .stt.base import make_transcriber
 
@@ -224,7 +226,7 @@ def build_app(cfg, keys, corrections_path=None, **overrides):
         transcriber=transcriber,
         fallback=fallback,
         formatter=formatter,
-        type_text=overrides.get("type_text") or type_text,
+        type_text=overrides.get("type_text") or make_injector(cfg.get("inject_mode", "type")),
         detect=overrides.get("detect") or context.detect,
         dict_terms=cfg.get("dictionary", []),
         entries=entries,
