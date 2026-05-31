@@ -121,6 +121,8 @@ pub struct Config {
     pub keys: Keys,
     #[serde(default = "d_max_rec")]
     pub max_recording_seconds: u32,
+    #[serde(default = "d_true")]
+    pub voice_commands: bool,
     #[serde(default)]
     pub dictionary: Vec<String>,
     #[serde(default = "d_profiles")]
@@ -131,7 +133,7 @@ impl Default for Config {
         Self {
             hotkey: Hotkey::default(), stt: Stt::default(), formatter: Formatter::default(),
             keys: Keys::default(), max_recording_seconds: d_max_rec(),
-            dictionary: Vec::new(), profiles: d_profiles(),
+            voice_commands: true, dictionary: Vec::new(), profiles: d_profiles(),
         }
     }
 }

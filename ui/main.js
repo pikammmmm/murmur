@@ -14,6 +14,7 @@ function render() {
   $("accuracy").checked = cfg.stt.accuracy_mode;
   $("fmt-provider").value = cfg.formatter.provider;
   $("fmt-mode").value = cfg.formatter.mode;
+  $("voice-commands").checked = cfg.voice_commands !== false;
   $("hotkey-key").value = cfg.hotkey.key;
   $("hotkey-side").value = cfg.hotkey.side;
   $("threshold").value = cfg.hotkey.hold_threshold_ms;
@@ -46,6 +47,7 @@ function collect() {
   cfg.stt.accuracy_mode = $("accuracy").checked;
   cfg.formatter.provider = $("fmt-provider").value;
   cfg.formatter.mode = $("fmt-mode").value;
+  cfg.voice_commands = $("voice-commands").checked;
   cfg.hotkey.key = $("hotkey-key").value;
   cfg.hotkey.side = $("hotkey-side").value;
   cfg.hotkey.hold_threshold_ms = parseInt($("threshold").value, 10) || 350;

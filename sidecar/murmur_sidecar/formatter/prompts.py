@@ -21,7 +21,8 @@ CLEANUP = (
     " You may fix punctuation, capitalization, and spacing; remove filler words "
     "(um, uh, like, you know) and false starts; resolve explicit self-corrections "
     "(if the speaker says 'actually', 'I mean', 'no wait' and then restates, keep "
-    "only the final version); and apply formatting appropriate to the context label."
+    "only the final version); and apply formatting appropriate to the context label. "
+    "Preserve any line breaks and list bullets already present in the text."
 )
 
 FAITHFUL_GUARD = (
