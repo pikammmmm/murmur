@@ -10,11 +10,14 @@ venv/
 *.egg-info/
 build/
 dist/
+build_pyi/
+*.spec
 
 # rust / tauri
 /target/
 **/target/
 src-tauri/target/
+src-tauri/gen/
 
 # node / tauri frontend
 node_modules/
