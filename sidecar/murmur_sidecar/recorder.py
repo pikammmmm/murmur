@@ -34,8 +34,18 @@ class Recorder:
         with self._lock:
             self._chunks = []
         factory = self._stream_factory or self._default_factory
-        self._stream = factory(self.sample_rate, self._callback)
-        self._stream.start()
+        stream = factory(self.sample_rate, self._callback)
+        try:
+            stream.start()
+        except Exception:
+            # Close the created-but-unstarted stream so it doesn't leak, then
+            # re-raise for the caller to surface (mic error -> idle).
+            try:
+                stream.close()
+            except Exception:
+                pass
+            raise
+        self._stream = stream  # only retain the stream once it actually started
 
     def stop(self):
         """Stop capture and return the recorded audio (flattened float32)."""

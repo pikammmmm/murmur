@@ -146,9 +146,11 @@ class App:
     def learn(self, corrected_text):
         """Teach from a correction of the last dictation: diff the raw STT
         against the user's fix and persist the (heard -> intended) pairs."""
-        if not corrected_text or not corrected_text.strip() or not self.last_raw:
+        with self._lock:
+            last = self.last_raw
+        if not corrected_text or not corrected_text.strip() or not last:
             return []
-        self.entries, pairs = learn_from_correction(self.entries, self.last_raw, corrected_text)
+        self.entries, pairs = learn_from_correction(self.entries, last, corrected_text)
         self._persist_and_refresh()
         log.info("learned %d correction(s)", len(pairs))
         return pairs
@@ -172,9 +174,11 @@ class App:
         if not self.save_history or not self.history_path:
             return
         words = len(text.split())
+        with self._lock:
+            last = self.last_raw
         try:
             history.append_history(self.history_path, {
-                "ts": time.time(), "raw": self.last_raw, "text": text,
+                "ts": time.time(), "raw": last, "text": text,
                 "profile": profile, "words": words,
             })
             if self.stats_path:
@@ -219,7 +223,8 @@ class App:
             )
             if not raw:
                 return
-            self.last_raw = raw
+            with self._lock:
+                self.last_raw = raw  # shared with the stdin thread (learn/history)
             if self._emit_last_raw:
                 self._emit_last_raw(raw)
             corrected = self.corrector.correct(raw) if self.corrector else raw
@@ -297,30 +302,36 @@ def stdin_command_loop(app, stream=None, on_reload=None):
             continue
         head, _, arg = line.partition(" ")
         verb = head.strip().lower()
-        if verb == "start":
-            app.start()
-        elif verb == "stop":
-            app.stop()
-        elif verb == "toggle":
-            app.toggle()
-        elif verb == "learn":
-            app.learn(arg)
-        elif verb == "correctadd":  # arg: "<wrong>\t<right>"
-            wrong, tab, right = arg.partition("\t")
-            if tab:
-                app.add_correction(wrong, right)
-        elif verb == "correctdel":
-            app.remove_correction(arg)
-        elif verb == "clearhistory":
-            app.clear_history()
-        elif verb == "preview":
-            events.preview(app.preview(arg))
-        elif verb == "snapshot":
-            app.snapshot()
-        elif verb == "reload":
-            if on_reload is not None:
-                on_reload()
-        elif verb == "quit":
+        if verb == "quit":
             break
-        else:
-            log.warning("unknown command: %r", verb)
+        # One bad/raising command must never kill the dispatcher — the sidecar
+        # has to stay responsive to future commands.
+        try:
+            if verb == "start":
+                app.start()
+            elif verb == "stop":
+                app.stop()
+            elif verb == "toggle":
+                app.toggle()
+            elif verb == "learn":
+                app.learn(arg)
+            elif verb == "correctadd":  # arg: "<wrong>\t<right>"
+                wrong, tab, right = arg.partition("\t")
+                if tab:
+                    app.add_correction(wrong, right)
+            elif verb == "correctdel":
+                app.remove_correction(arg)
+            elif verb == "clearhistory":
+                app.clear_history()
+            elif verb == "preview":
+                events.preview(app.preview(arg))
+            elif verb == "snapshot":
+                app.snapshot()
+            elif verb == "reload":
+                if on_reload is not None:
+                    on_reload()
+            else:
+                log.warning("unknown command: %r", verb)
+        except Exception as exc:
+            log.exception("command failed: %s", verb)
+            events.error(f"command failed: {exc}")

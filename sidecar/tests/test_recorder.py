@@ -33,3 +33,35 @@ def test_stop_without_start_returns_empty():
     audio = r.stop()
     assert audio.shape[0] == 0
     assert audio.dtype == np.float32
+
+
+class FailingStream:
+    def __init__(self, sr, cb):
+        self.closed = False
+
+    def start(self):
+        raise RuntimeError("mic busy")
+
+    def stop(self):
+        pass
+
+    def close(self):
+        self.closed = True
+
+
+def test_start_failure_closes_stream_and_leaves_none():
+    import pytest
+
+    streams = []
+
+    def factory(sr, cb):
+        s = FailingStream(sr, cb)
+        streams.append(s)
+        return s
+
+    r = Recorder(stream_factory=factory)
+    with pytest.raises(RuntimeError):
+        r.start()
+    assert streams[0].closed is True   # the unstarted stream was cleaned up
+    assert r._stream is None           # not retained
+    assert r.stop().shape[0] == 0      # subsequent stop is safe

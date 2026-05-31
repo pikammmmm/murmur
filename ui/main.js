@@ -1,12 +1,26 @@
 const { invoke } = window.__TAURI__.core;
 
 let cfg = null;
-
 const $ = (id) => document.getElementById(id);
 
+function showStatus(msg, ms = 3000) {
+  const s = $("status");
+  s.textContent = msg;
+  setTimeout(() => {
+    if (s.textContent === msg) s.textContent = "";
+  }, ms);
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ---- config ----
 async function load() {
-  cfg = await invoke("get_config");
-  render();
+  try {
+    cfg = await invoke("get_config");
+    render();
+  } catch (e) {
+    showStatus("Failed to load settings: " + e, 6000);
+  }
 }
 
 function render() {
@@ -35,10 +49,14 @@ function renderDict() {
     li.textContent = term;
     const btn = document.createElement("button");
     btn.textContent = "×";
-    btn.title = "Remove";
     btn.onclick = async () => {
-      cfg = await invoke("remove_dict_term", { term });
-      renderDict();
+      try {
+        cfg = await invoke("remove_dict_term", { term });
+      } catch (e) {
+        showStatus("Error: " + e);
+      } finally {
+        renderDict();
+      }
     };
     li.appendChild(btn);
     ul.appendChild(li);
@@ -64,18 +82,24 @@ function collect() {
 
 async function save() {
   collect();
-  await invoke("set_config", { payload: cfg });
-  const s = $("status");
-  s.textContent = "Saved ✓";
-  setTimeout(() => (s.textContent = ""), 1500);
+  try {
+    await invoke("set_config", { payload: cfg });
+    showStatus("Saved ✓", 1500);
+  } catch (e) {
+    showStatus("Save failed: " + e, 5000);
+  }
 }
 
 $("add-term").onclick = async () => {
   const input = $("new-term");
   const term = input.value.trim();
-  if (term) {
+  if (!term) return;
+  try {
     cfg = await invoke("add_dict_term", { term });
     input.value = "";
+  } catch (e) {
+    showStatus("Error: " + e);
+  } finally {
     renderDict();
   }
 };
@@ -88,7 +112,12 @@ function escapeHtml(s) {
 }
 
 async function loadCorrections() {
-  const entries = await invoke("get_corrections");
+  let entries;
+  try {
+    entries = await invoke("get_corrections");
+  } catch (e) {
+    return;
+  }
   const ul = $("corrections");
   ul.innerHTML = "";
   (entries || []).forEach((e) => {
@@ -99,9 +128,12 @@ async function loadCorrections() {
     span.innerHTML = `${escapeHtml(e.wrong)} &rarr; <b>${escapeHtml(e.right)}</b> <span class="cnt">&times;${e.count || 1}${src}</span>`;
     const btn = document.createElement("button");
     btn.textContent = "×";
-    btn.title = "Remove";
     btn.onclick = async () => {
-      await invoke("remove_correction", { wrong: e.wrong });
+      try {
+        await invoke("remove_correction", { wrong: e.wrong });
+      } catch (err) {
+        showStatus("Error: " + err);
+      }
       refreshCorrections();
     };
     li.appendChild(span);
@@ -110,42 +142,90 @@ async function loadCorrections() {
   });
 }
 
-// Mutations go to the sidecar (single writer); re-read after it persists+emits.
+// Mutations go to the sidecar (single writer); re-read a few times as it settles.
 function refreshCorrections() {
-  setTimeout(loadCorrections, 250);
+  [150, 450, 900].forEach((d) => setTimeout(loadCorrections, d));
 }
 
 $("add-corr").onclick = async () => {
   const wrong = $("corr-wrong").value.trim();
   const right = $("corr-right").value.trim();
-  if (wrong && right) {
+  if (!wrong || !right) return;
+  try {
     await invoke("add_correction", { wrong, right });
     $("corr-wrong").value = "";
     $("corr-right").value = "";
-    refreshCorrections();
+  } catch (e) {
+    showStatus("Error: " + e);
   }
+  refreshCorrections();
 };
 
 async function reloadLast() {
-  $("teach-box").value = (await invoke("get_last_raw")) || "";
+  try {
+    $("teach-box").value = (await invoke("get_last_raw")) || "";
+  } catch (e) {
+    /* ignore */
+  }
 }
 
 $("teach-reload").onclick = reloadLast;
 
 $("teach-save").onclick = async () => {
   const text = $("teach-box").value.trim();
-  if (text) {
+  if (!text) return;
+  try {
     await invoke("teach_last", { text });
-    const s = $("status");
-    s.textContent = "Taught ✓";
-    setTimeout(() => (s.textContent = ""), 1500);
-    refreshCorrections();
+    showStatus("Taught ✓", 1500);
+  } catch (e) {
+    showStatus("Error: " + e);
   }
+  refreshCorrections();
+};
+
+// ---- "try it" preview (poll until the sidecar's result settles) ----
+$("preview-run").onclick = async () => {
+  const text = $("preview-in").value;
+  if (!text.trim()) return;
+  const out = $("preview-out");
+  out.textContent = "…";
+  let before = "";
+  try {
+    before = await invoke("get_preview");
+  } catch (e) {
+    /* ignore */
+  }
+  try {
+    await invoke("do_preview", { text });
+  } catch (e) {
+    out.textContent = "error: " + e;
+    return;
+  }
+  for (let i = 0; i < 15; i++) {
+    await sleep(100);
+    let cur = before;
+    try {
+      cur = await invoke("get_preview");
+    } catch (e) {
+      /* keep polling */
+    }
+    if (cur !== before) {
+      out.textContent = cur;
+      return;
+    }
+  }
+  out.textContent = before || "(no response)";
 };
 
 // ---- history & stats ----
 async function loadHistory() {
-  const [stats, hist] = await Promise.all([invoke("get_stats"), invoke("get_history")]);
+  let stats = {};
+  let hist = [];
+  try {
+    [stats, hist] = await Promise.all([invoke("get_stats"), invoke("get_history")]);
+  } catch (e) {
+    return;
+  }
   const words = stats.words || 0;
   const dictations = stats.dictations || 0;
   const minSaved = Math.round(words * (1 / 40 - 1 / 150));
@@ -154,33 +234,40 @@ async function loadHistory() {
   ul.innerHTML = "";
   (hist || []).forEach((e) => {
     const li = document.createElement("li");
-    const text = (e.text || "").slice(0, 120);
     li.className = "hist";
-    li.textContent = text || "(empty)";
+    li.textContent = (e.text || "").slice(0, 120) || "(empty)";
     ul.appendChild(li);
   });
 }
 
-$("clear-history").onclick = async () => {
-  await invoke("clear_history");
-  setTimeout(loadHistory, 250);
-};
+function refreshHistory() {
+  [150, 450, 900].forEach((d) => setTimeout(loadHistory, d));
+}
 
-// ---- "try it" preview ----
-$("preview-run").onclick = async () => {
-  const text = $("preview-in").value;
-  if (!text.trim()) return;
-  await invoke("do_preview", { text });
-  setTimeout(async () => {
-    $("preview-out").textContent = await invoke("get_preview");
-  }, 200);
+$("clear-history").onclick = async () => {
+  try {
+    await invoke("clear_history");
+  } catch (e) {
+    showStatus("Error: " + e);
+  }
+  refreshHistory();
 };
 
 // ---- autostart (registry-backed, independent of the config save) ----
 async function loadAutostart() {
-  $("autostart").checked = await invoke("get_autostart");
+  try {
+    $("autostart").checked = await invoke("get_autostart");
+  } catch (e) {
+    /* ignore */
+  }
 }
-$("autostart").onchange = () => invoke("set_autostart", { enabled: $("autostart").checked });
+$("autostart").onchange = async () => {
+  try {
+    await invoke("set_autostart", { enabled: $("autostart").checked });
+  } catch (e) {
+    showStatus("Autostart failed: " + e);
+  }
+};
 
 load();
 loadCorrections();

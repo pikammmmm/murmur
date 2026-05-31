@@ -46,3 +46,22 @@ def test_make_injector_selects_mode():
     assert make_injector("paste") is paste_text
     assert make_injector("type") is type_text
     assert make_injector("anything-else") is type_text
+
+
+def test_paste_restores_clipboard_even_if_paste_raises():
+    import pytest
+
+    state = {"clip": "OLD"}
+
+    def boom():
+        raise RuntimeError("paste failed")
+
+    with pytest.raises(RuntimeError):
+        paste_text(
+            "hello",
+            get_clipboard=lambda: state["clip"],
+            set_clipboard=lambda t: state.__setitem__("clip", t),
+            do_paste=boom,
+            sleep=lambda _s: None,
+        )
+    assert state["clip"] == "OLD"  # restored despite the paste exception

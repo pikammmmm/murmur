@@ -65,14 +65,17 @@ def paste_text(text, get_clipboard=None, set_clipboard=None, do_paste=None, slee
     paste = do_paste or _ctrl_v
     nap = sleep or time.sleep
     previous = getc()
-    setc(text)
-    paste()
-    nap(0.12)  # let the target read the clipboard before we restore it
-    if previous is not None:
-        try:
-            setc(previous)
-        except Exception as exc:
-            log.warning("clipboard restore failed: %s", exc)
+    try:
+        setc(text)
+        paste()
+        nap(0.12)  # let the target read the clipboard before we restore it
+    finally:
+        # Always restore the user's prior clipboard, even if paste raised.
+        if previous is not None:
+            try:
+                setc(previous)
+            except Exception as exc:
+                log.warning("clipboard restore failed: %s", exc)
 
 
 def make_injector(mode):

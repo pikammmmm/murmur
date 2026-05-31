@@ -57,7 +57,14 @@ pub fn remove_dict_term(term: String, state: State<AppState>) -> Result<Config, 
 // stdin commands, and the cached entries/last-raw come back via events.
 
 fn sanitize(s: &str) -> String {
-    s.replace(['\n', '\r', '\t'], " ").trim().to_string()
+    // Tabs/newlines become spaces (they're protocol separators); any other
+    // control characters are dropped before crossing into the sidecar.
+    s.chars()
+        .map(|c| if c == '\t' || c == '\n' || c == '\r' { ' ' } else { c })
+        .filter(|c| !c.is_control())
+        .collect::<String>()
+        .trim()
+        .to_string()
 }
 
 #[tauri::command]
@@ -88,8 +95,8 @@ pub fn remove_correction(wrong: String, state: State<AppState>) {
 
 #[tauri::command]
 pub fn teach_last(text: String, state: State<AppState>) {
-    let t = text.replace(['\n', '\r'], " ");
-    if !t.trim().is_empty() {
+    let t = sanitize(&text);
+    if !t.is_empty() {
         state.supervisor.send(&format!("learn {t}"));
     }
 }
@@ -150,8 +157,10 @@ pub fn set_autostart(enabled: bool) -> Result<(), String> {
 // --- "try it" preview -------------------------------------------------------
 #[tauri::command]
 pub fn do_preview(text: String, state: State<AppState>) {
-    let t = text.replace(['\n', '\r'], " ");
-    state.supervisor.send(&format!("preview {t}"));
+    let t = sanitize(&text);
+    if !t.is_empty() {
+        state.supervisor.send(&format!("preview {t}"));
+    }
 }
 
 #[tauri::command]

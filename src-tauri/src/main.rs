@@ -168,9 +168,8 @@ fn main() {
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&settings_i, &pause_i, &quit_i])?;
             let pause_for_evt = pause_i.clone();
-            let _tray = TrayIconBuilder::with_id("murmur-tray")
+            let mut tray_builder = TrayIconBuilder::with_id("murmur-tray")
                 .tooltip(tray::tooltip_for("idle"))
-                .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
                 .on_menu_event(move |app, event| match event.id().as_ref() {
                     "settings" => open_settings(app),
@@ -194,8 +193,13 @@ fn main() {
                         app.exit(0);
                     }
                     _ => {}
-                })
-                .build(app)?;
+                });
+            // Icon is embedded at compile time, but don't panic the whole app if
+            // it's somehow unavailable — a tray without a custom icon still works.
+            if let Some(icon) = app.default_window_icon() {
+                tray_builder = tray_builder.icon(icon.clone());
+            }
+            let _tray = tray_builder.build(app)?;
 
             // Global hold-to-talk hotkey -> drive the sidecar.
             let trig = hotkey::trigger_from_config(&cfg.hotkey.key, &cfg.hotkey.side);

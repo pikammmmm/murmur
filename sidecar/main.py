@@ -38,6 +38,21 @@ def setup_logging():
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
+def attach_file_log(cfg_path):
+    """Also log to <data-dir>/sidecar.log. The shell runs us with stderr
+    discarded, so without this our diagnostics would vanish."""
+    try:
+        from logging.handlers import RotatingFileHandler
+        cfg_path.parent.mkdir(parents=True, exist_ok=True)
+        handler = RotatingFileHandler(
+            cfg_path.parent / "sidecar.log", maxBytes=1_000_000, backupCount=1, encoding="utf-8"
+        )
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+        logging.getLogger().addHandler(handler)
+    except Exception:
+        pass
+
+
 def _warm(app):
     """Warm whichever pipeline member is the local model, so the first real
     dictation doesn't pay the load cost."""
@@ -52,6 +67,7 @@ def main(argv=None):
     setup_logging()
     argv = argv if argv is not None else sys.argv[1:]
     cfg_path = Path(argv[0]) if argv else default_config_path()
+    attach_file_log(cfg_path)
 
     cfg = load_config(cfg_path)
     keys = resolve_keys(cfg)

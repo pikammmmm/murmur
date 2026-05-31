@@ -104,3 +104,20 @@ def test_stdin_loop_dispatches_until_quit():
     app = FakeApp()
     stdin_command_loop(app, stream=io.StringIO("start\n\nstop\ntoggle\nquit\nstart\n"))
     assert app.calls == ["start", "stop", "toggle"]  # blank line skipped, post-quit ignored
+
+
+def test_stdin_loop_survives_a_failing_command():
+    class App2:
+        def __init__(self):
+            self.calls = []
+
+        def stop(self):
+            raise RuntimeError("boom")  # a command that raises
+
+        def start(self):
+            self.calls.append("start")
+
+    app = App2()
+    # "stop" raises but must not kill the loop; "start" after it still runs.
+    stdin_command_loop(app, stream=io.StringIO("stop\nstart\nquit\n"))
+    assert app.calls == ["start"]
