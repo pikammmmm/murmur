@@ -45,4 +45,6 @@
 - **Recording-indicator overlay:** a transparent, always-on-top, click-through
   "blob" (Wispr-style) that pulses blue while you hold to speak and breathes while
   transcribing. Toggleable in settings.
-- **More keybind options:** Right Alt and Caps Lock, alongside the default hold-Shift.
+- **Keybind:** hold **`\`** (backslash) to talk — a dual-function key (a quick tap
+  still types a `\`; only a held press records). Shift / Right Ctrl / Right Alt /
+  Caps Lock remain selectable in settings.
