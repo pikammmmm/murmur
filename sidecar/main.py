@@ -55,14 +55,16 @@ def main(argv=None):
 
     cfg = load_config(cfg_path)
     keys = resolve_keys(cfg)
+    corrections_path = cfg_path.parent / "corrections.json"
     events.state("loading")
     log.info("config %s; stt=%s formatter=%s", cfg_path, cfg["stt"]["provider"], cfg["formatter"]["provider"])
-    app = build_app(cfg, keys)
+    app = build_app(cfg, keys, corrections_path=corrections_path)
     try:
         _warm(app)
     except Exception as exc:
         log.warning("warmup failed: %s", exc)
     events.state("idle")
+    app.snapshot()  # publish current correction entries to the shell
     log.info("ready; waiting for commands on stdin")
 
     def on_reload():

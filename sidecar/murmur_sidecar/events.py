@@ -39,3 +39,14 @@ def transcript(text, stream=None):
 
 def error(message, stream=None):
     emit({"type": "error", "message": message}, stream)
+
+
+def last_raw(text, stream=None):
+    """The raw (pre-correction) STT of the latest dictation — lets the UI
+    prefill the 'teach' box so corrections diff against what was actually heard."""
+    emit({"type": "last_raw", "text": text}, stream)
+
+
+def corrections(entries, stream=None):
+    """The current correction/pronunciation entries, for the settings UI."""
+    emit({"type": "corrections", "entries": entries}, stream)
