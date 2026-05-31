@@ -10,6 +10,8 @@ venv/
 *.egg-info/
 build/
 dist/
+build_pyi/
+*.spec
 
 # rust / tauri
 /target/
