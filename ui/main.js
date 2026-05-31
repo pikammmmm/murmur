@@ -36,6 +36,7 @@ function render() {
   $("audio-cues").checked = cfg.audio_cues !== false;
   $("inject-mode").value = cfg.inject_mode || "type";
   $("save-history").checked = cfg.save_history !== false;
+  $("overlay").checked = cfg.overlay !== false;
   $("hotkey-key").value = cfg.hotkey.key;
   $("hotkey-side").value = cfg.hotkey.side;
   $("threshold").value = cfg.hotkey.hold_threshold_ms;
@@ -78,6 +79,7 @@ function collect() {
   cfg.audio_cues = $("audio-cues").checked;
   cfg.inject_mode = $("inject-mode").value;
   cfg.save_history = $("save-history").checked;
+  cfg.overlay = $("overlay").checked;
   cfg.hotkey.key = $("hotkey-key").value;
   cfg.hotkey.side = $("hotkey-side").value;
   cfg.hotkey.hold_threshold_ms = parseInt($("threshold").value, 10) || 350;

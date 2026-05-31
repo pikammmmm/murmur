@@ -35,6 +35,7 @@ DEFAULTS = {
     "audio_cues": True,            # beep on record start/stop/error
     "inject_mode": "type",         # type | paste (clipboard + Ctrl+V)
     "save_history": True,          # keep a local dictation history + stats
+    "overlay": True,               # floating recording-indicator blob (Rust-side)
     "dictionary": [],
     "profiles": {},                    # optional per-exe profile overrides
 }

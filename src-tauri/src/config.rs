@@ -130,6 +130,8 @@ pub struct Config {
     pub inject_mode: String,
     #[serde(default = "d_true")]
     pub save_history: bool,
+    #[serde(default = "d_true")]
+    pub overlay: bool,
     #[serde(default)]
     pub dictionary: Vec<String>,
     #[serde(default = "d_profiles")]
@@ -141,7 +143,7 @@ impl Default for Config {
             hotkey: Hotkey::default(), stt: Stt::default(), formatter: Formatter::default(),
             keys: Keys::default(), max_recording_seconds: d_max_rec(),
             voice_commands: true, audio_cues: true, inject_mode: d_inject_mode(),
-            save_history: true, dictionary: Vec::new(), profiles: d_profiles(),
+            save_history: true, overlay: true, dictionary: Vec::new(), profiles: d_profiles(),
         }
     }
 }

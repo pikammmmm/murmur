@@ -5,7 +5,10 @@ use std::sync::{Arc, Mutex};
 
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, RunEvent, WebviewUrl,
+    WebviewWindowBuilder,
+};
 
 #[macro_use]
 mod logger;
@@ -73,6 +76,43 @@ fn resolve_launch(config_path: &PathBuf) -> Launch {
         args: vec![main_py.to_string_lossy().to_string()],
         config_path: config_path.clone(),
     }
+}
+
+const OVERLAY_W: f64 = 200.0;
+const OVERLAY_H: f64 = 90.0;
+
+/// Create the hidden recording-indicator overlay: borderless, transparent,
+/// always-on-top, click-through, bottom-center. Non-fatal on failure.
+fn setup_overlay(app: &AppHandle) {
+    let overlay = match WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App("overlay.html".into()))
+        .transparent(true)
+        .decorations(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .resizable(false)
+        .focused(false)
+        .shadow(false)
+        .inner_size(OVERLAY_W, OVERLAY_H)
+        .visible(false)
+        .build()
+    {
+        Ok(w) => w,
+        Err(e) => {
+            mlog!("overlay create failed: {e}");
+            return;
+        }
+    };
+    let _ = overlay.set_ignore_cursor_events(true); // clicks pass through
+    if let Ok(Some(monitor)) = app.primary_monitor() {
+        let scale = monitor.scale_factor();
+        let size = monitor.size();
+        let phys = LogicalSize::new(OVERLAY_W, OVERLAY_H).to_physical::<u32>(scale);
+        let margin = (40.0 * scale) as i32;
+        let x = ((size.width as i32) - (phys.width as i32)) / 2;
+        let y = (size.height as i32) - (phys.height as i32) - margin;
+        let _ = overlay.set_position(PhysicalPosition::new(x, y));
+    }
+    mlog!("overlay window created");
 }
 
 fn open_settings(app: &AppHandle) {
@@ -145,6 +185,15 @@ fn main() {
                     if let Some(t) = evt_handle.tray_by_id("murmur-tray") {
                         tray::set_state(&t, &s);
                     }
+                    if let Some(w) = evt_handle.get_webview_window("overlay") {
+                        let _ = evt_handle.emit_to("overlay", "murmur:state", s.clone());
+                        let want = matches!(s.as_str(), "recording" | "transcribing")
+                            && evt_handle
+                                .try_state::<AppState>()
+                                .map(|st| st.config.lock().unwrap().overlay)
+                                .unwrap_or(true);
+                        let _ = if want { w.show() } else { w.hide() };
+                    }
                 }
                 SidecarEvent::Error(m) => mlog!("sidecar error: {m}"),
                 SidecarEvent::LastRaw(t) => *raw_c.lock().unwrap() = t,
@@ -200,6 +249,9 @@ fn main() {
                 tray_builder = tray_builder.icon(icon.clone());
             }
             let _tray = tray_builder.build(app)?;
+
+            // Recording-indicator overlay (the floating blob).
+            setup_overlay(&handle);
 
             // Global hold-to-talk hotkey -> drive the sidecar.
             let trig = hotkey::trigger_from_config(&cfg.hotkey.key, &cfg.hotkey.side);

@@ -24,6 +24,8 @@ const VK_SHIFT: u32 = 0x10;
 const VK_LSHIFT: u32 = 0xA0;
 const VK_RSHIFT: u32 = 0xA1;
 const VK_RCONTROL: u32 = 0xA3;
+const VK_RMENU: u32 = 0xA5; // right Alt
+const VK_CAPITAL: u32 = 0x14; // Caps Lock
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -32,6 +34,8 @@ pub enum Trigger {
     ShiftLeft = 1,
     ShiftRight = 2,
     RightCtrl = 3,
+    RightAlt = 4,
+    CapsLock = 5,
 }
 
 pub fn trigger_from_config(key: &str, side: &str) -> Trigger {
@@ -42,6 +46,8 @@ pub fn trigger_from_config(key: &str, side: &str) -> Trigger {
             _ => Trigger::ShiftEither,
         },
         "rctrl" | "right-ctrl" | "rightctrl" => Trigger::RightCtrl,
+        "ralt" | "right-alt" | "rightalt" => Trigger::RightAlt,
+        "capslock" | "caps" => Trigger::CapsLock,
         _ => Trigger::ShiftEither,
     }
 }
@@ -52,6 +58,8 @@ fn is_trigger(vk: u32, t: Trigger) -> bool {
         Trigger::ShiftLeft => vk == VK_LSHIFT,
         Trigger::ShiftRight => vk == VK_RSHIFT,
         Trigger::RightCtrl => vk == VK_RCONTROL,
+        Trigger::RightAlt => vk == VK_RMENU,
+        Trigger::CapsLock => vk == VK_CAPITAL,
     }
 }
 
@@ -61,6 +69,8 @@ fn trigger_vks(t: Trigger) -> &'static [i32] {
         Trigger::ShiftLeft => &[VK_LSHIFT as i32],
         Trigger::ShiftRight => &[VK_RSHIFT as i32],
         Trigger::RightCtrl => &[VK_RCONTROL as i32],
+        Trigger::RightAlt => &[VK_RMENU as i32],
+        Trigger::CapsLock => &[VK_CAPITAL as i32],
     }
 }
 
@@ -84,6 +94,8 @@ fn current_trigger() -> Trigger {
         1 => Trigger::ShiftLeft,
         2 => Trigger::ShiftRight,
         3 => Trigger::RightCtrl,
+        4 => Trigger::RightAlt,
+        5 => Trigger::CapsLock,
         _ => Trigger::ShiftEither,
     }
 }
@@ -203,6 +215,8 @@ mod tests {
         assert_eq!(trigger_from_config("shift", "left"), Trigger::ShiftLeft);
         assert_eq!(trigger_from_config("shift", "right"), Trigger::ShiftRight);
         assert_eq!(trigger_from_config("rctrl", ""), Trigger::RightCtrl);
+        assert_eq!(trigger_from_config("ralt", ""), Trigger::RightAlt);
+        assert_eq!(trigger_from_config("capslock", ""), Trigger::CapsLock);
         assert_eq!(trigger_from_config("whatever", ""), Trigger::ShiftEither);
     }
 

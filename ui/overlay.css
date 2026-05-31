@@ -1,0 +1,50 @@
+/* The page background MUST be transparent or WebView2 paints it opaque. */
+html, body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+}
+
+#blob {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 30%, #444, #0b0b0c 72%);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55), inset 0 1px 2px rgba(255, 255, 255, 0.12);
+  opacity: 0;
+  transition: opacity 0.16s ease;
+  will-change: transform, box-shadow;
+}
+
+/* Listening: black blob with an expanding blue ring, like Wispr's. */
+#blob.recording {
+  opacity: 1;
+  animation: pulse 1.15s ease-in-out infinite;
+}
+
+/* Thinking: a calmer breathe. */
+#blob.transcribing {
+  opacity: 1;
+  animation: breathe 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: translateX(-50%) scale(1);
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55), 0 0 0 0 rgba(92, 182, 255, 0.55);
+  }
+  50% {
+    transform: translateX(-50%) scale(1.14);
+    box-shadow: 0 6px 26px rgba(0, 0, 0, 0.6), 0 0 0 14px rgba(92, 182, 255, 0);
+  }
+}
+
+@keyframes breathe {
+  0%, 100% { transform: translateX(-50%) scale(0.92); opacity: 0.72; }
+  50% { transform: translateX(-50%) scale(1.04); opacity: 1; }
+}
