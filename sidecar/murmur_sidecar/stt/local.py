@@ -35,12 +35,14 @@ class LocalTranscriber:
 
     def transcribe(self, audio, sr, prompt):
         model = self._ensure()
+        # `hotwords` (faster-whisper >=1.0.2) biases toward rare terms better than
+        # initial_prompt; it must NOT be paired with `prefix` (we don't use prefix).
         segments, _ = model.transcribe(
             audio,
             language=self.language,
             beam_size=self.beam_size,
             vad_filter=self.vad_filter,
             condition_on_previous_text=False,
-            initial_prompt=(prompt or None),
+            hotwords=(prompt or None),
         )
         return "".join(seg.text for seg in segments).strip()

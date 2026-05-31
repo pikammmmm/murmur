@@ -33,6 +33,10 @@ hold Shift (alone, ~350ms)         Rust/Tauri core
 - **Context:** the active app + window title pick the formatting profile.
 - **Custom dictionary:** your names/jargon bias the recognizer *and* are kept
   verbatim by the formatter.
+- **Pronunciation learning:** murmur learns the words you correct and auto-fixes
+  accent-driven mishearings of known terms (Double-Metaphone phonetic + fuzzy
+  matching), so it improves the more you use it. Manage it in tray → Settings →
+  "Pronunciations & corrections", or fix the last dictation in the "Teach" box.
 
 ## Status (Phase 1)
 
@@ -109,8 +113,9 @@ See `sidecar/RUNBOOK.md` for sidecar-level details and `docs/` for the full desi
 
 ## Roadmap
 
-- **Phase 2:** browser-URL context (UI Automation), dictionary auto-learn from
-  corrections, voice formatting commands ("new paragraph", "bullet list").
+- **Phase 2:** browser-URL context (UI Automation), voice formatting commands
+  ("new paragraph", "bullet list"). *(Pronunciation/accent learning — the "auto-learn
+  from corrections" piece — shipped early; see the design doc.)*
 - **Phase 3:** command mode (select text + speak an instruction), style profiles,
   streaming partials.
 - **Maybe later:** merge into the custom Windows taskbar (glassbar) as a managed

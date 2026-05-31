@@ -1,16 +1,24 @@
-"""The orchestrator + state machine.
+"""The orchestrator + state machine + learning.
 
 Drives one dictation: record -> (on stop) detect context -> transcribe (cloud,
-local fallback) -> faithful-cleanup format -> type into the focused field, while
-emitting state/transcript/error events. Collaborators are injected so the whole
-pipeline is unit-testable without a mic, network, or models. ``build_app`` wires
-the real ones from config; ``stdin_command_loop`` is the command channel.
+local fallback, biased toward the user's vocabulary) -> apply learned/phonetic
+corrections -> faithful-cleanup format -> type into the focused field. Also owns
+the learning surface: `learn` (diff the last raw transcript vs the user's fix),
+plus manual add/remove of correction entries. Collaborators are injected so the
+whole pipeline is unit-testable without a mic, network, or models.
 """
 import logging
 import threading
 
 from . import events
-from .dictionary import build_stt_prompt
+from .corrections import (
+    Corrector,
+    build_bias_string,
+    build_bias_terms,
+    learn_from_correction,
+    save_store,
+    upsert,
+)
 from .formatter.base import format_text
 from .stt.base import transcribe_with_fallback
 
@@ -20,8 +28,10 @@ log = logging.getLogger("murmur.app")
 class App:
     def __init__(
         self, recorder, transcriber, fallback, formatter, type_text, detect,
-        dict_terms=None, sample_rate=16000, max_seconds=60,
-        emit_state=None, emit_transcript=None, emit_error=None, use_threads=True,
+        dict_terms=None, entries=None, corrections_path=None,
+        sample_rate=16000, max_seconds=60,
+        emit_state=None, emit_transcript=None, emit_error=None,
+        emit_last_raw=None, emit_corrections=None, use_threads=True,
     ):
         self.recorder = recorder
         self.transcriber = transcriber
@@ -30,22 +40,33 @@ class App:
         self.type_text = type_text
         self.detect = detect
         self.dict_terms = dict_terms or []
+        self.entries = entries or []
+        self.corrections_path = corrections_path
         self.sample_rate = sample_rate
         self.max_seconds = max_seconds
         self._emit_state = emit_state or events.state
         self._emit_transcript = emit_transcript or events.transcript
         self._emit_error = emit_error or events.error
+        self._emit_last_raw = emit_last_raw
+        self._emit_corrections = emit_corrections
         self.use_threads = use_threads
         self._lock = threading.Lock()
         self._recording = False
         self._transcribing = False
         self._max_timer = None
+        self.last_raw = ""
+        self._rebuild()
+
+    def _rebuild(self):
+        """Rebuild the corrector + STT bias string from dictionary + entries."""
+        self.corrector = Corrector(self.dict_terms, self.entries)
+        self.bias_prompt = build_bias_string(build_bias_terms(self.dict_terms, self.entries))
 
     # --- commands ---------------------------------------------------------
     def start(self):
         with self._lock:
             if self._recording or self._transcribing:
-                return  # already recording, or a previous clip is still processing
+                return
             self._recording = True
         try:
             self.recorder.start()
@@ -76,20 +97,56 @@ class App:
         with self._lock:
             recording, transcribing = self._recording, self._transcribing
         if transcribing:
-            return  # ignore toggles while a clip is still being processed
+            return
         if recording:
             self.stop()
         else:
             self.start()
 
     def apply_config(self, cfg, keys):
-        """Rebuild providers + settings when the Rust shell signals 'reload'."""
         from .formatter.base import make_formatter
         from .stt.base import make_transcriber
         self.transcriber, self.fallback = make_transcriber(cfg, keys)
         self.formatter = make_formatter(cfg, keys)
         self.dict_terms = cfg.get("dictionary", [])
         self.max_seconds = cfg.get("max_recording_seconds", 60)
+        self._rebuild()
+
+    # --- learning ---------------------------------------------------------
+    def _persist_and_refresh(self):
+        if self.corrections_path:
+            try:
+                save_store(self.corrections_path, self.entries)
+            except OSError as exc:
+                log.warning("save corrections failed: %s", exc)
+        self._rebuild()
+        if self._emit_corrections:
+            self._emit_corrections(self.entries)
+
+    def learn(self, corrected_text):
+        """Teach from a correction of the last dictation: diff the raw STT
+        against the user's fix and persist the (heard -> intended) pairs."""
+        if not corrected_text or not corrected_text.strip() or not self.last_raw:
+            return []
+        self.entries, pairs = learn_from_correction(self.entries, self.last_raw, corrected_text)
+        self._persist_and_refresh()
+        log.info("learned %d correction(s)", len(pairs))
+        return pairs
+
+    def add_correction(self, wrong, right):
+        if wrong and wrong.strip() and right and right.strip():
+            self.entries = upsert(self.entries, wrong, right, source="manual")
+            self._persist_and_refresh()
+
+    def remove_correction(self, wrong):
+        key = (wrong or "").strip().lower()
+        self.entries = [e for e in self.entries if e["wrong"].lower() != key]
+        self._persist_and_refresh()
+
+    def snapshot(self):
+        """Emit the current correction list (called once at startup)."""
+        if self._emit_corrections:
+            self._emit_corrections(self.entries)
 
     # --- internals --------------------------------------------------------
     def _arm_max_timer(self):
@@ -105,11 +162,16 @@ class App:
             if audio is None or len(audio) == 0:
                 return
             profile, _exe, _title = self.detect()
-            prompt = build_stt_prompt(self.dict_terms)
-            raw = transcribe_with_fallback(self.transcriber, self.fallback, audio, self.sample_rate, prompt)
+            raw = transcribe_with_fallback(
+                self.transcriber, self.fallback, audio, self.sample_rate, self.bias_prompt
+            )
             if not raw:
                 return
-            text = format_text(self.formatter, raw, profile, self.dict_terms)
+            self.last_raw = raw
+            if self._emit_last_raw:
+                self._emit_last_raw(raw)
+            corrected = self.corrector.correct(raw) if self.corrector else raw
+            text = format_text(self.formatter, corrected, profile, self.dict_terms)
             if text:
                 try:
                     self.type_text(text)
@@ -125,9 +187,10 @@ class App:
             self._emit_state("idle")
 
 
-def build_app(cfg, keys, **overrides):
+def build_app(cfg, keys, corrections_path=None, **overrides):
     """Wire a real App from config + resolved keys (overrides for testing)."""
     from . import context
+    from .corrections import load_store
     from .formatter.base import make_formatter
     from .injector import type_text
     from .recorder import Recorder
@@ -135,6 +198,7 @@ def build_app(cfg, keys, **overrides):
 
     transcriber, fallback = make_transcriber(cfg, keys)
     formatter = make_formatter(cfg, keys)
+    entries = load_store(corrections_path) if corrections_path else []
     return App(
         recorder=overrides.get("recorder") or Recorder(),
         transcriber=transcriber,
@@ -143,28 +207,46 @@ def build_app(cfg, keys, **overrides):
         type_text=overrides.get("type_text") or type_text,
         detect=overrides.get("detect") or context.detect,
         dict_terms=cfg.get("dictionary", []),
+        entries=entries,
+        corrections_path=corrections_path,
         max_seconds=cfg.get("max_recording_seconds", 60),
+        emit_last_raw=events.last_raw,
+        emit_corrections=events.corrections,
     )
 
 
 def stdin_command_loop(app, stream=None, on_reload=None):
-    """Dispatch one command per stdin line. Returns on 'quit' or EOF."""
+    """Dispatch one command per stdin line. The verb is lower-cased; the
+    argument keeps its original case (transcripts/corrections are case-sensitive).
+    Returns on 'quit' or EOF."""
     import sys
     stream = stream if stream is not None else sys.stdin
     for line in stream:
-        cmd = line.strip().lower()
-        if not cmd:
+        line = line.rstrip("\n").rstrip("\r")
+        if not line.strip():
             continue
-        if cmd == "start":
+        head, _, arg = line.partition(" ")
+        verb = head.strip().lower()
+        if verb == "start":
             app.start()
-        elif cmd == "stop":
+        elif verb == "stop":
             app.stop()
-        elif cmd == "toggle":
+        elif verb == "toggle":
             app.toggle()
-        elif cmd == "reload":
+        elif verb == "learn":
+            app.learn(arg)
+        elif verb == "correctadd":  # arg: "<wrong>\t<right>"
+            wrong, tab, right = arg.partition("\t")
+            if tab:
+                app.add_correction(wrong, right)
+        elif verb == "correctdel":
+            app.remove_correction(arg)
+        elif verb == "snapshot":
+            app.snapshot()
+        elif verb == "reload":
             if on_reload is not None:
                 on_reload()
-        elif cmd == "quit":
+        elif verb == "quit":
             break
         else:
-            log.warning("unknown command: %r", cmd)
+            log.warning("unknown command: %r", verb)

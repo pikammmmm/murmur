@@ -51,3 +51,45 @@ pub fn remove_dict_term(term: String, state: State<AppState>) -> Result<Config, 
     state.supervisor.send("reload");
     Ok(snapshot)
 }
+
+// --- pronunciation / correction learning -----------------------------------
+// The sidecar owns corrections.json (single writer); these commands send it
+// stdin commands, and the cached entries/last-raw come back via events.
+
+fn sanitize(s: &str) -> String {
+    s.replace(['\n', '\r', '\t'], " ").trim().to_string()
+}
+
+#[tauri::command]
+pub fn get_corrections(state: State<AppState>) -> serde_json::Value {
+    state.corrections.lock().unwrap().clone()
+}
+
+#[tauri::command]
+pub fn get_last_raw(state: State<AppState>) -> String {
+    state.last_raw.lock().unwrap().clone()
+}
+
+#[tauri::command]
+pub fn add_correction(wrong: String, right: String, state: State<AppState>) {
+    let (w, r) = (sanitize(&wrong), sanitize(&right));
+    if !w.is_empty() && !r.is_empty() {
+        state.supervisor.send(&format!("correctadd {w}\t{r}"));
+    }
+}
+
+#[tauri::command]
+pub fn remove_correction(wrong: String, state: State<AppState>) {
+    let w = sanitize(&wrong);
+    if !w.is_empty() {
+        state.supervisor.send(&format!("correctdel {w}"));
+    }
+}
+
+#[tauri::command]
+pub fn teach_last(text: String, state: State<AppState>) {
+    let t = text.replace(['\n', '\r'], " ");
+    if !t.trim().is_empty() {
+        state.supervisor.send(&format!("learn {t}"));
+    }
+}

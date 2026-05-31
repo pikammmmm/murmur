@@ -7,4 +7,7 @@ anthropic>=0.39
 pynput>=1.7.6
 pywin32>=306
 psutil>=5.9
+metaphone>=0.6
+rapidfuzz>=3.0
+jellyfish>=1.0
 pytest>=8.0
