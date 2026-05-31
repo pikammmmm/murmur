@@ -135,3 +135,14 @@ pub fn get_stats(state: State<AppState>) -> serde_json::Value {
 pub fn clear_history(state: State<AppState>) {
     state.supervisor.send("clearhistory");
 }
+
+// --- run at login -----------------------------------------------------------
+#[tauri::command]
+pub fn get_autostart() -> bool {
+    crate::autostart::is_enabled()
+}
+
+#[tauri::command]
+pub fn set_autostart(enabled: bool) -> Result<(), String> {
+    crate::autostart::set(enabled).map_err(|e| e.to_string())
+}

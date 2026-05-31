@@ -9,6 +9,7 @@ use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
 
 #[macro_use]
 mod logger;
+mod autostart;
 mod commands;
 mod config;
 mod hotkey;
@@ -119,6 +120,8 @@ fn main() {
             commands::get_history,
             commands::get_stats,
             commands::clear_history,
+            commands::get_autostart,
+            commands::set_autostart,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

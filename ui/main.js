@@ -166,7 +166,14 @@ $("clear-history").onclick = async () => {
   setTimeout(loadHistory, 250);
 };
 
+// ---- autostart (registry-backed, independent of the config save) ----
+async function loadAutostart() {
+  $("autostart").checked = await invoke("get_autostart");
+}
+$("autostart").onchange = () => invoke("set_autostart", { enabled: $("autostart").checked });
+
 load();
 loadCorrections();
 reloadLast();
 loadHistory();
+loadAutostart();
