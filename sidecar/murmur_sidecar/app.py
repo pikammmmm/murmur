@@ -186,6 +186,18 @@ class App:
         if self.history_path and self.stats_path:
             history.clear(self.history_path, self.stats_path)
 
+    def preview(self, text):
+        """Run the offline (non-LLM) transforms — corrections, grammar, voice
+        commands — so the UI can show their effect on sample text instantly."""
+        if not text:
+            return ""
+        out = self.corrector.correct(text) if self.corrector else text
+        if self.format_mode == "grammar":
+            out = fix_grammar(out)
+        if self.voice_commands:
+            out = apply_voice_commands(out)
+        return out
+
     # --- internals --------------------------------------------------------
     def _arm_max_timer(self):
         if self.max_seconds and self.use_threads:
@@ -301,6 +313,8 @@ def stdin_command_loop(app, stream=None, on_reload=None):
             app.remove_correction(arg)
         elif verb == "clearhistory":
             app.clear_history()
+        elif verb == "preview":
+            events.preview(app.preview(arg))
         elif verb == "snapshot":
             app.snapshot()
         elif verb == "reload":

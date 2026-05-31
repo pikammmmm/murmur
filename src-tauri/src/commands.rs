@@ -146,3 +146,15 @@ pub fn get_autostart() -> bool {
 pub fn set_autostart(enabled: bool) -> Result<(), String> {
     crate::autostart::set(enabled).map_err(|e| e.to_string())
 }
+
+// --- "try it" preview -------------------------------------------------------
+#[tauri::command]
+pub fn do_preview(text: String, state: State<AppState>) {
+    let t = text.replace(['\n', '\r'], " ");
+    state.supervisor.send(&format!("preview {t}"));
+}
+
+#[tauri::command]
+pub fn get_preview(state: State<AppState>) -> String {
+    state.preview.lock().unwrap().clone()
+}

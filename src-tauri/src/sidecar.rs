@@ -21,6 +21,8 @@ pub enum SidecarEvent {
     LastRaw(String),
     /// Current correction/pronunciation entries (a JSON array) — for the UI.
     Corrections(serde_json::Value),
+    /// Result of a "Try it" preview request.
+    Preview(String),
 }
 
 /// Parse one stdout line into an event. Returns None for blank/foreign lines.
@@ -34,6 +36,7 @@ pub fn parse_event(line: &str) -> Option<SidecarEvent> {
         "corrections" => Some(SidecarEvent::Corrections(
             v.get("entries").cloned().unwrap_or_else(|| serde_json::Value::Array(vec![])),
         )),
+        "preview" => Some(SidecarEvent::Preview(v.get("text").and_then(|x| x.as_str()).unwrap_or("").to_string())),
         _ => None,
     }
 }

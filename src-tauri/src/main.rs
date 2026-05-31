@@ -28,6 +28,7 @@ pub struct AppState {
     /// Cached from sidecar events so commands can read them synchronously.
     pub corrections: Arc<Mutex<serde_json::Value>>,
     pub last_raw: Arc<Mutex<String>>,
+    pub preview: Arc<Mutex<String>>,
 }
 
 /// One running instance only — a named kernel mutex survives across processes
@@ -122,6 +123,8 @@ fn main() {
             commands::clear_history,
             commands::get_autostart,
             commands::set_autostart,
+            commands::do_preview,
+            commands::get_preview,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -129,11 +132,13 @@ fn main() {
             // Shared caches updated from sidecar events (read by commands).
             let corrections = Arc::new(Mutex::new(serde_json::Value::Array(vec![])));
             let last_raw = Arc::new(Mutex::new(String::new()));
+            let preview = Arc::new(Mutex::new(String::new()));
 
             // Sidecar supervisor — forward events to the tray + caches.
             let evt_handle = handle.clone();
             let corr_c = corrections.clone();
             let raw_c = last_raw.clone();
+            let prev_c = preview.clone();
             let supervisor = Supervisor::start(launch.clone(), move |evt| match evt {
                 SidecarEvent::State(s) => {
                     mlog!("sidecar state: {s}");
@@ -144,6 +149,7 @@ fn main() {
                 SidecarEvent::Error(m) => mlog!("sidecar error: {m}"),
                 SidecarEvent::LastRaw(t) => *raw_c.lock().unwrap() = t,
                 SidecarEvent::Corrections(v) => *corr_c.lock().unwrap() = v,
+                SidecarEvent::Preview(t) => *prev_c.lock().unwrap() = t,
                 SidecarEvent::Transcript(_) => {}
             });
 
@@ -153,6 +159,7 @@ fn main() {
                 supervisor,
                 corrections,
                 last_raw,
+                preview,
             });
 
             // Tray icon + menu.

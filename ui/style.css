@@ -69,6 +69,8 @@ ul#corrections button:hover { color: #ff6b6b; }
 
 ul#history { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
 ul#history li.hist { background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 12px; color: var(--muted); }
+
+.preview-out { background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px; padding: 10px; margin-top: 8px; min-height: 20px; white-space: pre-wrap; word-break: break-word; color: var(--accent); font-size: 13px; font-family: inherit; }
 input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); }
 
 .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }

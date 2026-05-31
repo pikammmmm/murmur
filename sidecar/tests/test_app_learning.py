@@ -99,6 +99,17 @@ def test_dictation_recorded_to_history_and_stats(tmp_path):
     assert H.load_history(tmp_path / "h.jsonl") == []
 
 
+def test_preview_applies_offline_transforms(tmp_path):
+    app, _ = build(
+        [{"wrong": "glass bar", "right": "glassbar", "count": 1, "source": "manual"}],
+        "x",
+        tmp_path,
+        format_mode="grammar",
+    )
+    out = app.preview("he don't know glass bar new paragraph done")
+    assert out == "he doesn't know glassbar\n\ndone"
+
+
 def test_learned_exact_correction_applies_to_dictation(tmp_path):
     app, typed = build(
         [{"wrong": "glass bar", "right": "glassbar", "count": 3, "source": "learned"}],

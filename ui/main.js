@@ -166,6 +166,16 @@ $("clear-history").onclick = async () => {
   setTimeout(loadHistory, 250);
 };
 
+// ---- "try it" preview ----
+$("preview-run").onclick = async () => {
+  const text = $("preview-in").value;
+  if (!text.trim()) return;
+  await invoke("do_preview", { text });
+  setTimeout(async () => {
+    $("preview-out").textContent = await invoke("get_preview");
+  }, 200);
+};
+
 // ---- autostart (registry-backed, independent of the config save) ----
 async function loadAutostart() {
   $("autostart").checked = await invoke("get_autostart");

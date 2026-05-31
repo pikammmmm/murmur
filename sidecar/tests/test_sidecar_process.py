@@ -104,3 +104,46 @@ def test_sidecar_manual_correction_roundtrip(tmp_path):
     finally:
         if proc.poll() is None:
             proc.kill()
+
+
+@pytest.mark.slow
+def test_sidecar_preview_roundtrip(tmp_path):
+    cfg = tmp_path / "config.json"
+    cfg.write_text(json.dumps({
+        "stt": {"provider": "local", "local_model": "base"},
+        "formatter": {"provider": "off", "mode": "grammar"},
+    }))
+    env = dict(os.environ)
+    env["MURMUR_CONFIG"] = str(cfg)
+    main_py = Path(__file__).resolve().parent.parent / "main.py"
+    proc = subprocess.Popen(
+        [sys.executable, str(main_py)],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        text=True, env=env, bufsize=1,
+    )
+
+    def read_until(pred, limit=50):
+        for _ in range(limit):
+            line = proc.stdout.readline()
+            if not line:
+                return None
+            try:
+                evt = json.loads(line)
+            except ValueError:
+                continue
+            if pred(evt):
+                return evt
+        return None
+
+    try:
+        assert read_until(lambda e: e.get("state") == "idle") is not None
+        proc.stdin.write("preview he don't know\n")
+        proc.stdin.flush()
+        ev = read_until(lambda e: e.get("type") == "preview")
+        assert ev is not None and ev["text"] == "he doesn't know"
+        proc.stdin.write("quit\n")
+        proc.stdin.flush()
+        proc.wait(timeout=15)
+    finally:
+        if proc.poll() is None:
+            proc.kill()

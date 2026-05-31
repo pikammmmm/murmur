@@ -50,3 +50,8 @@ def last_raw(text, stream=None):
 def corrections(entries, stream=None):
     """The current correction/pronunciation entries, for the settings UI."""
     emit({"type": "corrections", "entries": entries}, stream)
+
+
+def preview(text, stream=None):
+    """Result of running sample text through the offline transforms."""
+    emit({"type": "preview", "text": text}, stream)
