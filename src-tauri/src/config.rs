@@ -27,7 +27,7 @@ fn d_lang() -> String { "en".into() }
 fn d_groq_model() -> String { "whisper-large-v3-turbo".into() }
 fn d_openai_model() -> String { "gpt-4o-transcribe".into() }
 fn d_local_model() -> String { "small".into() }
-fn d_gpu_model() -> String { "large-v3".into() }
+fn d_gpu_model() -> String { "turbo".into() }
 fn d_beam() -> u32 { 5 }
 fn d_true() -> bool { true }
 fn d_fmt_provider() -> String { "anthropic".into() }
