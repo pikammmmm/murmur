@@ -1,0 +1,4 @@
+# Normalize line endings: store text files as LF in the repo and convert per
+# platform in working trees. Stops spurious "modified" status from CRLF/LF
+# mismatches (e.g. Cargo.toml showing changed on Windows with autocrlf).
+* text=auto
