@@ -6,6 +6,7 @@ audio without a real microphone. In production it opens a sounddevice InputStrea
 """
 import logging
 import threading
+import time
 
 import numpy as np
 
@@ -46,6 +47,25 @@ class Recorder:
                 pass
             raise
         self._stream = stream  # only retain the stream once it actually started
+
+    def warm(self, settle=0.2):
+        """Pre-open (and discard) a capture stream at startup so the FIRST real
+        recording isn't truncated.
+
+        PortAudio initializes lazily on the first stream in the process, and on a
+        cold boot the audio endpoint's first open lags by seconds while the
+        driver/device spins up. That latency would otherwise be paid on the
+        user's first key-press — clipping the leading audio of their first
+        dictation down to a word or two. Opening a throwaway stream here pays it
+        up front. ``stop()`` clears the buffer, so no warm samples leak into the
+        next real capture. Best-effort: a missing mic must not break startup."""
+        try:
+            self.start()
+            if settle:
+                time.sleep(settle)  # let the device actually begin streaming
+            self.stop()
+        except Exception as exc:
+            log.warning("recorder warmup failed: %s", exc)
 
     def stop(self):
         """Stop capture and return the recorded audio (flattened float32)."""

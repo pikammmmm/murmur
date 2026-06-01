@@ -54,12 +54,21 @@ def attach_file_log(cfg_path):
 
 
 def _warm(app):
-    """Warm the model that does the work (GPU/local primary, else the local
-    fallback behind a cloud primary) so the first real dictation doesn't pay the
-    load cost. Cloud transcribers have no warm()."""
+    """Warm the slow-to-initialize pieces so the first real dictation is both
+    fast AND complete:
+
+      * the STT model (GPU/local primary, else the local fallback behind a cloud
+        primary) — pays the model load + first-inference cost. Cloud
+        transcribers have no warm().
+      * the microphone — its first cold open after boot lags by seconds (lazy
+        PortAudio init + device spin-up), which would otherwise drop the leading
+        audio of the first recording and truncate that transcript. This applies
+        regardless of STT provider, so it runs unconditionally."""
     target = app.transcriber if hasattr(app.transcriber, "warm") else app.fallback
     if target is not None and hasattr(target, "warm"):
         target.warm()
+    if getattr(app, "recorder", None) is not None and hasattr(app.recorder, "warm"):
+        app.recorder.warm()
 
 
 def main(argv=None):
