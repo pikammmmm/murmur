@@ -197,8 +197,19 @@ fn timer_loop() {
         let trig = current_trigger();
         let action = {
             let mut st = state.lock().unwrap();
-            if (st.is_recording() || st.is_armed()) && !physically_down(trig) {
-                // Missed key-up (e.g. elevated window had focus) — self-heal.
+            // Detect a missed key-up so we can self-heal. CRITICAL: a *suppressed*
+            // text key (we return LRESULT(1) for '\') is invisible to
+            // GetAsyncKeyState — it reports the key as up even while it's held —
+            // so probing it would cancel the arm ~20ms in and recording would
+            // never start. For text keys we trust our own PENDING flag (we see
+            // every down/up ourselves); only observed modifier keys, whose up we
+            // can genuinely miss behind an elevated window, use the physical probe.
+            let key_released = if is_text_key(trig) {
+                !PENDING.load(Ordering::SeqCst)
+            } else {
+                !physically_down(trig)
+            };
+            if (st.is_recording() || st.is_armed()) && key_released {
                 let a = st.on_trigger_up(now);
                 PENDING.store(false, Ordering::SeqCst); // clear any stuck text-key state
                 a
