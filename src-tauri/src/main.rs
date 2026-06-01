@@ -55,9 +55,26 @@ fn singleton_ok() -> bool {
     }
 }
 
-/// Where the Python sidecar lives. Prefer a frozen `murmur-sidecar.exe` shipped
-/// next to the app; fall back (dev) to the project venv running `main.py`.
+/// Where the Python sidecar lives. Normally prefer a frozen `murmur-sidecar.exe`
+/// shipped next to the app, falling back (dev) to the project venv running
+/// `main.py`. EXCEPTION: the "gpu" provider needs torch-directml, which is only
+/// in the dev venv (never frozen) — so when gpu is selected and the venv exists,
+/// prefer the venv even if a frozen CPU sidecar sits next to us (the bundler
+/// re-copies that frozen exe on every build, so we can't rely on its absence).
 fn resolve_launch(config_path: &PathBuf) -> Launch {
+    let home = std::env::var("USERPROFILE").unwrap_or_default();
+    let venv_py = PathBuf::from(&home).join("murmur").join("sidecar").join(".venv").join("Scripts").join("python.exe");
+    let main_py = PathBuf::from(&home).join("murmur").join("sidecar").join("main.py");
+    let venv_launch = || Launch {
+        program: venv_py.clone(),
+        args: vec![main_py.to_string_lossy().to_string()],
+        config_path: config_path.clone(),
+    };
+
+    if venv_py.exists() && main_py.exists() && Config::load_from(config_path).stt.provider == "gpu" {
+        mlog!("sidecar launch: dev venv (gpu provider) {}", venv_py.display());
+        return venv_launch();
+    }
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
             // Bundled installs place the frozen sidecar next to the exe; some
@@ -70,15 +87,8 @@ fn resolve_launch(config_path: &PathBuf) -> Launch {
             }
         }
     }
-    let home = std::env::var("USERPROFILE").unwrap_or_default();
-    let py = PathBuf::from(&home).join("murmur").join("sidecar").join(".venv").join("Scripts").join("python.exe");
-    let main_py = PathBuf::from(&home).join("murmur").join("sidecar").join("main.py");
-    mlog!("sidecar launch: dev venv {}", py.display());
-    Launch {
-        program: py,
-        args: vec![main_py.to_string_lossy().to_string()],
-        config_path: config_path.clone(),
-    }
+    mlog!("sidecar launch: dev venv {}", venv_py.display());
+    venv_launch()
 }
 
 const OVERLAY_W: f64 = 300.0;
