@@ -83,11 +83,18 @@
   still come first; the broad list is bias-only and kept out of the phonetic
   corrector to avoid over-correcting common English.
 - **Bigger offline model** — default faster-whisper `base` → `small`.
-- **GPU transcription (`"gpu"` provider):** full Whisper **large-v3** on any
-  DirectX 12 GPU via **DirectML** — including AMD/Intel, no CUDA. Big accuracy
-  jump, fully offline; CPU `faster-whisper` stays as automatic fallback. The GPU
-  stack (torch + DirectML + the model) is optional and lives in
-  `requirements-gpu.txt`, so it runs via the dev venv and the frozen/distributed
-  sidecar stays lean (CPU). Sparse `alignment_heads` is densified so the model
-  moves to the DirectML device. Verified: large-v3 runs on a Radeon RX 7800 XT
-  (~3.8 s for a 5 s clip).
+- **GPU transcription (`"gpu"` provider):** full Whisper on any DirectX 12 GPU
+  via **DirectML** — including AMD/Intel, no CUDA. Big accuracy jump, fully
+  offline; CPU `faster-whisper` stays as automatic fallback. The GPU stack
+  (torch + DirectML + the model) is optional and lives in `requirements-gpu.txt`,
+  so it runs via the dev venv and the frozen/distributed sidecar stays lean
+  (CPU). Sparse `alignment_heads` is densified so the model moves to the DirectML
+  device. Default model is **`large-v3-turbo`** (≈2× faster than large-v3 at
+  equal accuracy) at **beam 3** (matched beam-5 accuracy for ~27% less time).
+  Verified on a Radeon RX 7800 XT: ~1.9 s for a ~13 s clip.
+- **Punctuation fix (GPU path):** stopped passing the vocabulary glossary as
+  openai-whisper's `initial_prompt` — an unpunctuated list there made the model
+  drop periods/commas/apostrophes (and it wasn't improving recognition). turbo's
+  native accuracy handles the terms; the post-STT corrector still fixes
+  user-taught words. (faster-whisper `hotwords` and cloud `prompt` are unaffected
+  and keep biasing.)
