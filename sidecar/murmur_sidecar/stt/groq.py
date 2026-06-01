@@ -24,11 +24,13 @@ class GroqTranscriber:
     def transcribe(self, audio, sr, prompt):
         from .wavutil import to_wav_bytes
         client = self._ensure()
-        resp = client.audio.transcriptions.create(
+        kwargs = dict(
             model=self.model,
             file=("audio.wav", to_wav_bytes(audio, sr)),
-            language=self.language,
             prompt=(prompt or None),
             temperature=0,
         )
+        if self.language:  # omit -> the API auto-detects the language
+            kwargs["language"] = self.language
+        resp = client.audio.transcriptions.create(**kwargs)
         return (getattr(resp, "text", "") or "").strip()

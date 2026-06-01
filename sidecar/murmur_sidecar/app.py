@@ -32,7 +32,7 @@ class App:
     def __init__(
         self, recorder, transcriber, fallback, formatter, type_text, detect,
         dict_terms=None, entries=None, corrections_path=None, format_mode="faithful",
-        voice_commands=True, audio_cues=True, save_history=True,
+        language="en", voice_commands=True, audio_cues=True, save_history=True,
         history_path=None, stats_path=None, sample_rate=16000, max_seconds=60,
         emit_state=None, emit_transcript=None, emit_error=None,
         emit_last_raw=None, emit_corrections=None, use_threads=True,
@@ -47,6 +47,7 @@ class App:
         self.entries = entries or []
         self.corrections_path = corrections_path
         self.format_mode = format_mode
+        self.language = language
         self.voice_commands = voice_commands
         self.audio_cues = audio_cues
         self.save_history = save_history
@@ -66,6 +67,11 @@ class App:
         self._max_timer = None
         self.last_raw = ""
         self._rebuild()
+
+    def _english_rules(self):
+        """The offline grammar/voice-command rules are English-specific. Run them
+        for English or auto-detect; skip for an explicit non-English language."""
+        return (self.language or "auto").lower() in ("en", "auto")
 
     def _rebuild(self):
         """Rebuild the corrector + STT bias string from dictionary + entries.
@@ -135,6 +141,7 @@ class App:
         self.type_text = make_injector(cfg.get("inject_mode", "type"))
         self.dict_terms = cfg.get("dictionary", [])
         self.format_mode = cfg.get("formatter", {}).get("mode", "faithful")
+        self.language = cfg.get("stt", {}).get("language", "en")
         self.voice_commands = cfg.get("voice_commands", True)
         self.audio_cues = cfg.get("audio_cues", True)
         self.save_history = cfg.get("save_history", True)
@@ -205,7 +212,7 @@ class App:
         if not text:
             return ""
         out = self.corrector.correct(text) if self.corrector else text
-        if self.format_mode == "grammar":
+        if self.format_mode == "grammar" and self._english_rules():
             out = fix_grammar(out)
         if self.voice_commands:
             out = apply_voice_commands(out)
@@ -237,7 +244,7 @@ class App:
             if self._emit_last_raw:
                 self._emit_last_raw(raw)
             corrected = self.corrector.correct(raw) if self.corrector else raw
-            if self.format_mode == "grammar":
+            if self.format_mode == "grammar" and self._english_rules():
                 corrected = fix_grammar(corrected)
             if self.voice_commands:
                 corrected = apply_voice_commands(corrected)
@@ -293,6 +300,7 @@ def build_app(cfg, keys, corrections_path=None, **overrides):
         entries=entries,
         corrections_path=corrections_path,
         format_mode=cfg.get("formatter", {}).get("mode", "faithful"),
+        language=cfg.get("stt", {}).get("language", "en"),
         voice_commands=cfg.get("voice_commands", True),
         audio_cues=cfg.get("audio_cues", True),
         save_history=cfg.get("save_history", True),

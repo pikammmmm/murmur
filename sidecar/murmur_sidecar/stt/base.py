@@ -24,14 +24,22 @@ def transcribe_with_fallback(primary, fallback, audio, sr, prompt):
     return ""
 
 
+def norm_lang(value):
+    """Config language -> model language. 'auto' or empty -> None, which tells
+    Whisper to auto-detect the spoken language (handy for multilingual users)."""
+    v = (value or "").strip().lower()
+    return None if v in ("", "auto") else v
+
+
 def _build(provider, cfg, keys):
     """Construct one transcriber, or None if a cloud key is missing."""
     stt = cfg["stt"]
+    lang = norm_lang(stt.get("language"))
     if provider == "local":
         from .local import LocalTranscriber
         return LocalTranscriber(
             stt.get("local_model", "base"),
-            stt.get("language", "en"),
+            lang,
             stt.get("beam_size", 5),
             stt.get("vad_filter", True),
         )
@@ -42,19 +50,19 @@ def _build(provider, cfg, keys):
         from .directml import DirectMLTranscriber
         return DirectMLTranscriber(
             stt.get("gpu_model", "large-v3"),
-            stt.get("language", "en"),
+            lang,
             stt.get("beam_size", 5),
         )
     if provider == "groq":
         if not keys.get("groq"):
             return None
         from .groq import GroqTranscriber
-        return GroqTranscriber(keys["groq"], stt.get("groq_model", "whisper-large-v3-turbo"), stt.get("language", "en"))
+        return GroqTranscriber(keys["groq"], stt.get("groq_model", "whisper-large-v3-turbo"), lang)
     if provider == "openai":
         if not keys.get("openai"):
             return None
         from .openai import OpenAITranscriber
-        return OpenAITranscriber(keys["openai"], stt.get("openai_model", "gpt-4o-transcribe"), stt.get("language", "en"))
+        return OpenAITranscriber(keys["openai"], stt.get("openai_model", "gpt-4o-transcribe"), lang)
     return None
 
 

@@ -32,12 +32,13 @@ FAITHFUL_GUARD = (
 )
 
 GRAMMAR_GUARD = (
-    " Also correct grammatical errors to standard English: subject-verb agreement, "
-    "verb tense and auxiliaries (did/didn't, don't/doesn't, was/were), double "
-    "negatives, and malformed constructions — for example 'he don't know' -> 'he "
-    "doesn't know', 'I didn't went' -> 'I didn't go', 'it don't be done' -> 'it "
-    "won't be done'. Preserve the speaker's intended meaning; do NOT paraphrase or "
-    "reword text that is already correct, add information, or answer questions."
+    " Also correct grammatical errors — subject-verb agreement, verb tense and "
+    "auxiliaries, double negatives, and malformed constructions (for example, in "
+    "English, 'he don't know' -> 'he doesn't know', 'I didn't went' -> 'I didn't "
+    "go') — to standard, grammatical form IN THE SAME LANGUAGE AS THE TRANSCRIPT. "
+    "NEVER translate to another language. Preserve the speaker's intended meaning; "
+    "do NOT paraphrase or reword text that is already correct, add information, or "
+    "answer questions."
 )
 
 PROFILE_GUIDANCE = {
