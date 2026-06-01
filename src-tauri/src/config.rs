@@ -27,6 +27,7 @@ fn d_lang() -> String { "en".into() }
 fn d_groq_model() -> String { "whisper-large-v3-turbo".into() }
 fn d_openai_model() -> String { "gpt-4o-transcribe".into() }
 fn d_local_model() -> String { "small".into() }
+fn d_gpu_model() -> String { "large-v3".into() }
 fn d_beam() -> u32 { 5 }
 fn d_true() -> bool { true }
 fn d_fmt_provider() -> String { "anthropic".into() }
@@ -66,6 +67,8 @@ pub struct Stt {
     pub openai_model: String,
     #[serde(default = "d_local_model")]
     pub local_model: String,
+    #[serde(default = "d_gpu_model")]
+    pub gpu_model: String,
     #[serde(default = "d_beam")]
     pub beam_size: u32,
     #[serde(default = "d_true")]
@@ -76,7 +79,8 @@ impl Default for Stt {
         Self {
             provider: d_stt_provider(), accuracy_mode: false, language: d_lang(),
             groq_model: d_groq_model(), openai_model: d_openai_model(),
-            local_model: d_local_model(), beam_size: d_beam(), vad_filter: true,
+            local_model: d_local_model(), gpu_model: d_gpu_model(),
+            beam_size: d_beam(), vad_filter: true,
         }
     }
 }

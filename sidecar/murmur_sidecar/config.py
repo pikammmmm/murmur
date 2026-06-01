@@ -14,12 +14,13 @@ from pathlib import Path
 DEFAULTS = {
     "hotkey": {"key": "backslash", "side": "either", "hold_threshold_ms": 350},
     "stt": {
-        "provider": "groq",            # groq | openai | local
+        "provider": "groq",            # groq | openai | gpu | local
         "accuracy_mode": False,        # true -> use the openai gpt-4o-transcribe path
         "language": "en",
         "groq_model": "whisper-large-v3-turbo",
         "openai_model": "gpt-4o-transcribe",
-        "local_model": "small",        # faster-whisper size for the offline fallback (small > base accuracy)
+        "local_model": "small",        # faster-whisper size for the offline (CPU) fallback (small > base accuracy)
+        "gpu_model": "large-v3",       # openai-whisper size for the "gpu" provider (DirectML)
         "beam_size": 5,
         "vad_filter": True,
     },

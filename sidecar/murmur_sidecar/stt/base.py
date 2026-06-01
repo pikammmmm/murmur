@@ -35,6 +35,16 @@ def _build(provider, cfg, keys):
             stt.get("beam_size", 5),
             stt.get("vad_filter", True),
         )
+    if provider == "gpu":
+        # GPU Whisper via DirectML (AMD/any DX12 GPU). Lazy: needs torch-directml
+        # + openai-whisper in the venv; if absent it raises at transcribe time and
+        # transcribe_with_fallback drops to the local CPU transcriber.
+        from .directml import DirectMLTranscriber
+        return DirectMLTranscriber(
+            stt.get("gpu_model", "large-v3"),
+            stt.get("language", "en"),
+            stt.get("beam_size", 5),
+        )
     if provider == "groq":
         if not keys.get("groq"):
             return None

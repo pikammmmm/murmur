@@ -1,0 +1,14 @@
+# Optional GPU acceleration for the "gpu" STT provider.
+#
+# Runs full Whisper on any DirectX 12 GPU on Windows via DirectML — including
+# AMD/Intel (no CUDA needed). Heavy (pulls torch ~200MB; large-v3 downloads
+# ~3GB on first use), so it's kept OUT of the base requirements and the frozen
+# sidecar. The "gpu" provider therefore runs via the dev venv, not the frozen
+# exe. Install into the sidecar venv:
+#
+#   .venv\Scripts\pip install -r requirements-gpu.txt
+#
+# Then set stt.provider = "gpu" (tray -> Settings). The CPU faster-whisper model
+# stays as automatic fallback.
+torch-directml
+openai-whisper

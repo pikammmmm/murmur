@@ -54,13 +54,12 @@ def attach_file_log(cfg_path):
 
 
 def _warm(app):
-    """Warm whichever pipeline member is the local model, so the first real
-    dictation doesn't pay the load cost."""
-    candidates = [app.transcriber, app.fallback]
-    for member in candidates:
-        if member is not None and type(member).__name__ == "LocalTranscriber":
-            member.warm()
-            return
+    """Warm the model that does the work (GPU/local primary, else the local
+    fallback behind a cloud primary) so the first real dictation doesn't pay the
+    load cost. Cloud transcribers have no warm()."""
+    target = app.transcriber if hasattr(app.transcriber, "warm") else app.fallback
+    if target is not None and hasattr(target, "warm"):
+        target.warm()
 
 
 def main(argv=None):

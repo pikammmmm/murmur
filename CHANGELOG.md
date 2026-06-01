@@ -75,3 +75,19 @@
   live-dot** while listening, and a blue **thinking pulse** while transcribing.
 - **Tray → "Preview indicator"** cycles the overlay through its states with no
   mic, so the look can be checked independently of dictation.
+
+## Phase 7 — accuracy
+- **Built-in technical vocabulary** (`vocab.py`): a curated set of common program/
+  brand words (GitHub, Discord, autostart, Roblox, Rust, Luau, Tauri, …) always
+  fed to the STT bias so they're recognized out of the box. User dictionary terms
+  still come first; the broad list is bias-only and kept out of the phonetic
+  corrector to avoid over-correcting common English.
+- **Bigger offline model** — default faster-whisper `base` → `small`.
+- **GPU transcription (`"gpu"` provider):** full Whisper **large-v3** on any
+  DirectX 12 GPU via **DirectML** — including AMD/Intel, no CUDA. Big accuracy
+  jump, fully offline; CPU `faster-whisper` stays as automatic fallback. The GPU
+  stack (torch + DirectML + the model) is optional and lives in
+  `requirements-gpu.txt`, so it runs via the dev venv and the frozen/distributed
+  sidecar stays lean (CPU). Sparse `alignment_heads` is densified so the model
+  moves to the DirectML device. Verified: large-v3 runs on a Radeon RX 7800 XT
+  (~3.8 s for a 5 s clip).
