@@ -67,9 +67,14 @@ class DirectMLTranscriber:
         model = self._ensure()
         audio = np.asarray(audio, dtype="float32")
         audio = _resample(audio, sr)
-        # DirectML has no fp16; initial_prompt biases the decoder toward our vocab.
+        # NOTE: we intentionally do NOT pass `prompt` as initial_prompt. With
+        # openai-whisper, an unpunctuated glossary prompt conditions the output
+        # style and makes the model DROP punctuation/apostrophes — and it didn't
+        # even improve term recognition here. turbo's native accuracy is strong;
+        # user-taught terms are still fixed by the post-STT corrector.
+        # DirectML has no fp16, so fp16=False.
         result = model.transcribe(
             audio, language=self.language, beam_size=self.beam_size, fp16=False,
-            condition_on_previous_text=False, initial_prompt=(prompt or None),
+            condition_on_previous_text=False,
         )
         return (result.get("text") or "").strip()

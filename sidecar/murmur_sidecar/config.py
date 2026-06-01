@@ -21,7 +21,7 @@ DEFAULTS = {
         "openai_model": "gpt-4o-transcribe",
         "local_model": "small",        # faster-whisper size for the offline (CPU) fallback (small > base accuracy)
         "gpu_model": "turbo",          # openai-whisper model for the "gpu" provider (DirectML); turbo = large-v3-turbo (~2x faster, ~large accuracy)
-        "beam_size": 5,
+        "beam_size": 3,                # 3 matched 5's accuracy at ~27% less GPU time
         "vad_filter": True,
     },
     "formatter": {
