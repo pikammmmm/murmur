@@ -62,3 +62,16 @@
   standalone (loads faster-whisper base int8, warms, emits state events, exits
   clean) — confirming the onefile's native deps (ctranslate2, onnxruntime)
   resolve at runtime.
+
+## Phase 6 — working keybind + Wispr-style indicator
+- **Fix: hold-`\` never started recording.** The `\` trigger is suppressed so it
+  doesn't type while held, but a key swallowed by a low-level hook is invisible
+  to `GetAsyncKeyState` — the 20 ms self-heal saw it as released ~20 ms in,
+  cancelled the arm before the hold threshold, and recording never started (you
+  got a stray `\` on release). Text keys now self-heal off our own `PENDING`
+  flag; only modifier keys use the physical-state probe.
+- **Recording indicator redesigned** to a Wispr "Flow Bar"-style pill: a dark
+  frosted pill at bottom-center with an animated 14-bar **waveform + red
+  live-dot** while listening, and a blue **thinking pulse** while transcribing.
+- **Tray → "Preview indicator"** cycles the overlay through its states with no
+  mic, so the look can be checked independently of dictation.
