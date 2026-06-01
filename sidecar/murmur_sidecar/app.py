@@ -74,8 +74,11 @@ class App:
         learned corrections only). The STT bias additionally folds in the
         built-in technical vocabulary, so common program/brand words are
         recognized out of the box without risking auto-correction."""
-        from .vocab import for_bias
-        self.corrector = Corrector(self.dict_terms, self.entries)
+        from .vocab import fix_entries, for_bias
+        # Built-in deterministic brand fixes apply on top of the user's own
+        # learned/manual corrections (user entries last so they can override).
+        entries = fix_entries() + list(self.entries or [])
+        self.corrector = Corrector(self.dict_terms, entries)
         self.bias_prompt = build_bias_string(build_bias_terms(for_bias(self.dict_terms), self.entries))
 
     # --- commands ---------------------------------------------------------
