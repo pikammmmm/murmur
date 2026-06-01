@@ -30,6 +30,13 @@ $frozen = Join-Path $sidecar 'dist\murmur-sidecar.exe'
 if (-not (Test-Path $frozen)) { throw 'sidecar freeze failed' }
 Write-Host "frozen sidecar: $frozen" -ForegroundColor Green
 
+# Stage the frozen sidecar inside src-tauri so the bundler embeds it as a
+# resource (tauri.conf.json -> bundle.resources). Without this the MSI would
+# install the shell with no sidecar.
+$staged = Join-Path $root 'src-tauri\binaries'
+New-Item -ItemType Directory -Force -Path $staged | Out-Null
+Copy-Item $frozen (Join-Path $staged 'murmur-sidecar.exe') -Force
+
 Write-Host '== Building Tauri app ==' -ForegroundColor Cyan
 Push-Location (Join-Path $root 'src-tauri')
 try {

@@ -60,10 +60,13 @@ fn singleton_ok() -> bool {
 fn resolve_launch(config_path: &PathBuf) -> Launch {
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            let frozen = dir.join("murmur-sidecar.exe");
-            if frozen.exists() {
-                mlog!("sidecar launch: frozen {}", frozen.display());
-                return Launch { program: frozen, args: vec![], config_path: config_path.clone() };
+            // Bundled installs place the frozen sidecar next to the exe; some
+            // bundlers nest resources under `resources/`. Check both.
+            for frozen in [dir.join("murmur-sidecar.exe"), dir.join("resources").join("murmur-sidecar.exe")] {
+                if frozen.exists() {
+                    mlog!("sidecar launch: frozen {}", frozen.display());
+                    return Launch { program: frozen, args: vec![], config_path: config_path.clone() };
+                }
             }
         }
     }
