@@ -3,8 +3,8 @@
 Self-hosted, Wispr-Flow-class **voice dictation for Windows**. Hold a key, speak,
 release — and accurate, correctly-punctuated, context-appropriately-formatted
 text is typed into whatever field is focused (email, chat, code editor, browser,
-anywhere). No subscription; running cost is a few cents a month (or **$0** fully
-offline).
+anywhere). No subscription; running cost is a few cents a month — or **$0** fully
+offline with no API keys at all.
 
 ## How it works
 
@@ -12,47 +12,58 @@ A native **Rust/Tauri shell** drives a **Python sidecar** over a tiny
 `stdin`-command / `stdout`-JSON-event protocol:
 
 ```
-hold Shift (alone, ~350ms)         Rust/Tauri core
+hold  \  (held, not tapped)        Rust/Tauri core
    │                                ├─ Win32 WH_KEYBOARD_LL global hotkey
    ▼                                ├─ tray icon + settings/dictionary UI
  record ──────────────────────────▶├─ owns config.json, supervises sidecar
    │ release                        │      │ start / stop / reload / quit (stdin)
    ▼                                │      ▼
  transcribe + format + type ◀───────┴─ Python sidecar:
-                                       recorder → context → STT → formatter → inject
+                                       recorder → context → STT → correct → format → inject
 ```
 
-- **STT:** Groq `whisper-large-v3-turbo` (cloud, fast/cheap) by default, with an
+## Features
+
+- **Hold-to-talk on `\`** — hold the backslash key to record, release to type the
+  result. It's a *dual-function* key: a quick tap still types a normal `\`, only a
+  held press records. Prefer a non-typing key? Shift / Right Ctrl / Right Alt /
+  Caps Lock are all selectable in Settings.
+- **Recording indicator** — a Wispr-style floating "Flow Bar" pill at the bottom of
+  the screen: an animated **waveform + live-dot** while it listens, a **thinking
+  pulse** while it transcribes. (Tray → *Preview indicator* to see it.)
+- **STT** — Groq `whisper-large-v3-turbo` (cloud, fast/cheap) by default, with an
   automatic **local `faster-whisper` fallback** when offline. OpenAI
   `gpt-4o-transcribe` is available as an accuracy toggle.
-- **Formatting & grammar:** Claude Haiku 4.5 cleans the transcript per the active
-  app (email vs chat vs code), removes fillers/false starts, and resolves spoken
-  self-corrections. Two modes: **Grammar** (default) also fixes grammatical errors
-  to standard English — subject-verb agreement, tense, did/didn't, don't/doesn't,
-  double negatives, malformed phrases (e.g. "he don't know" → "he doesn't know",
-  "it don't be done" → "it won't be done") — while preserving your meaning;
-  **Faithful** never changes your words. An offline rule pass handles common fixes
-  even with no API key, and on any error it falls through to the raw transcript so
-  words are never lost.
-- **Context:** the active app + window title pick the formatting profile.
-- **Custom dictionary:** your names/jargon bias the recognizer *and* are kept
-  verbatim by the formatter.
-- **Pronunciation learning:** murmur learns the words you correct and auto-fixes
+- **Formatting & grammar** — Claude Haiku 4.5 cleans the transcript, removes
+  fillers/false-starts, and resolves spoken self-corrections. Two modes:
+  **Grammar** (default) also fixes grammatical errors to standard English —
+  agreement, tense, did/didn't, don't/doesn't, double negatives, malformed phrases
+  (e.g. "he don't know" → "he doesn't know", "it don't be done" → "it won't be
+  done") — while preserving your meaning; **Faithful** never changes your words. An
+  offline rule pass handles common fixes with no API key, and on any error it falls
+  through to the raw transcript so words are never lost.
+- **Content-aware** — detects email-shaped speech (greeting, sign-off, "send an
+  email…") and formats it as an email; detects a shopping/to-do list and turns it
+  into bullet points — on top of the per-app profile (email vs chat vs code).
+- **Pronunciation / accent learning** — learns the words you correct and auto-fixes
   accent-driven mishearings of known terms (Double-Metaphone phonetic + fuzzy
-  matching), so it improves the more you use it. Manage it in tray → Settings →
-  "Pronunciations & corrections", or fix the last dictation in the "Teach" box.
+  matching), so it improves the more you use it. Manage it in tray → Settings, or
+  fix the last dictation in the "Teach" box.
+- **Custom dictionary** — your names/jargon bias the recognizer *and* are kept
+  verbatim by the formatter.
+- **Voice commands** — say "new paragraph", "new line", "new bullet", or "scratch
+  that" to edit as you dictate.
+- **Quality-of-life** — audio cues, type-vs-paste insertion, local dictation
+  history + stats, run-at-login, and a tray Pause/Resume.
 
-## Status (Phase 1)
+## Status
 
-Built test-first. **All tests green:** 50 Python unit tests + 2 real Python
-integration tests (SAPI→faster-whisper transcription, sidecar process boot) and
-18 Rust unit tests. The full app has been launched and verified to boot, install
-the global hotkey, spawn + supervise the sidecar, and reach `idle`.
+Built test-first. **All tests green: 145 Python + 22 Rust.** Ships as a release
+build: an optimized `murmur.exe` plus a frozen `murmur-sidecar.exe` (no Python
+required for end users) and an MSI installer. Runs fully offline out of the box;
+cloud STT + AI formatting light up the moment you add an API key.
 
-The one step that needs you (interactive, can't be automated): holding the
-hotkey and speaking into a mic — see the runbook below.
-
-## Run it (works now, no packaging needed)
+## Run from source (dev)
 
 The Rust shell auto-detects the dev sidecar (`sidecar/.venv` + `main.py`) when no
 frozen sidecar is bundled, so you can run straight from a debug build:
@@ -65,62 +76,54 @@ python -m venv .venv
 
 # 2. run the app
 cd ..\src-tauri
-cargo run            # or cargo build && run target\debug\murmur.exe
+cargo run
 ```
 
-A tray icon appears. With **no API keys**, it transcribes locally (offline) and
-types the raw transcript. Add keys in **tray → Settings** (or set
-`GROQ_API_KEY` / `ANTHROPIC_API_KEY`) to enable fast cloud STT + AI cleanup.
+A tray icon appears. With **no API keys** it transcribes locally (offline) and
+types the raw transcript. Add keys in **tray → Settings** (or set the
+`GROQ_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` environment variables) to
+enable fast cloud STT + AI cleanup.
 
-### Manual dictation test
+### Try dictating
 
-1. Focus any text field (Notepad, Gmail, VS Code…).
-2. **Hold Shift alone** for ~0.35s (don't press other keys) — the tray shows
-   *recording*.
-3. Speak, then **release Shift** — tray shows *transcribing*, then the cleaned
+1. Focus any text field (Notepad, your editor, a browser…).
+2. **Hold `\`** — the recording pill appears at the bottom of the screen.
+3. Speak, then **release** — the pill switches to *transcribing*, then the cleaned
    text is typed in.
-4. Quick `Shift`+letter capitalization must **not** trigger recording.
+4. A quick **tap** of `\` still just types a `\`.
 
-> Default input on this machine is "Microphone (Voicemod)" — a virtual mic that
-> needs Voicemod running. Switch the Windows default input if transcripts come
-> back empty.
-
-If the Shift hold-delay feels off, switch the trigger to **Right Ctrl** in
-Settings (zero delay, since it's not a typing key).
+> If transcripts come back empty, check your Windows **default input device** is a
+> real microphone.
 
 ## Build a release / installer
 
 ```powershell
-# Freeze the sidecar so end users need no Python (output: sidecar/dist/murmur-sidecar.exe)
-cd sidecar
-.\.venv\Scripts\pip install pyinstaller
-.\.venv\Scripts\pyinstaller --onefile --name murmur-sidecar `
-  --collect-all faster_whisper --collect-all ctranslate2 --collect-all onnxruntime --collect-all tokenizers main.py
-# Copy sidecar/dist/murmur-sidecar.exe next to murmur.exe (or into Tauri resources),
-# then:
-cd ..\src-tauri
-cargo tauri build         # produces an MSI in target/release/bundle
+.\build.ps1 -Release
 ```
 
-The shell prefers a `murmur-sidecar.exe` sitting next to it; otherwise it falls
-back to the dev venv.
+This freezes the Python sidecar with PyInstaller (so end users need no Python),
+builds the optimized Tauri app, and produces an MSI in
+`src-tauri/target/release/bundle/msi`. The frozen sidecar is bundled next to the
+shell so an installed copy is self-contained. (Omit `-Release` for a fast debug
+build.)
 
 ## Layout
 
-- `sidecar/` — Python pipeline (recorder, context, STT providers, formatter,
-  dictionary, injector, orchestrator). Tests in `sidecar/tests`.
-- `src-tauri/` — Rust/Tauri shell (hotkey hook, supervisor, tray, config, commands).
-- `ui/` — settings + dictionary web UI.
-- `docs/superpowers/specs` & `docs/superpowers/plans` — design + implementation plan.
+- `sidecar/` — Python pipeline: recorder, context detection, STT providers,
+  corrections/grammar/intent, formatter, injector, orchestrator. Tests in
+  `sidecar/tests`.
+- `src-tauri/` — Rust/Tauri shell: global hotkey hook, sidecar supervisor, tray,
+  overlay, config, commands, autostart.
+- `ui/` — settings/dictionary web UI + the recording-indicator overlay.
+- `docs/` — architecture notes and the original design + implementation plan.
 
-See `sidecar/RUNBOOK.md` for sidecar-level details and `docs/` for the full design.
+See `CHANGELOG.md` for the feature history and `docs/ARCHITECTURE.md` for the
+internals.
 
 ## Roadmap
 
-- **Phase 2:** browser-URL context (UI Automation), voice formatting commands
-  ("new paragraph", "bullet list"). *(Pronunciation/accent learning — the "auto-learn
-  from corrections" piece — shipped early; see the design doc.)*
-- **Phase 3:** command mode (select text + speak an instruction), style profiles,
-  streaming partials.
-- **Maybe later:** merge into the custom Windows taskbar (glassbar) as a managed
+- **Audio-reactive waveform** — drive the indicator's bars from live mic level.
+- **Command mode** — select text and speak an instruction to rewrite it.
+- **Streaming partials** — show text as you speak rather than on release.
+- **Maybe later:** merge into a custom Windows taskbar (glassbar) as a managed
   voice module — the sidecar protocol is already compatible.
