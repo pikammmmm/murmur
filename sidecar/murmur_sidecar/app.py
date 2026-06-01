@@ -138,7 +138,7 @@ class App:
         from .stt.base import make_transcriber
         self.transcriber, self.fallback = make_transcriber(cfg, keys)
         self.formatter = make_formatter(cfg, keys)
-        self.type_text = make_injector(cfg.get("inject_mode", "type"))
+        self.type_text = make_injector(cfg.get("inject_mode", "type"), cfg.get("inject_char_delay_ms"))
         self.dict_terms = cfg.get("dictionary", [])
         self.format_mode = cfg.get("formatter", {}).get("mode", "faithful")
         self.language = cfg.get("stt", {}).get("language", "en")
@@ -294,7 +294,7 @@ def build_app(cfg, keys, corrections_path=None, **overrides):
         transcriber=transcriber,
         fallback=fallback,
         formatter=formatter,
-        type_text=overrides.get("type_text") or make_injector(cfg.get("inject_mode", "type")),
+        type_text=overrides.get("type_text") or make_injector(cfg.get("inject_mode", "type"), cfg.get("inject_char_delay_ms")),
         detect=overrides.get("detect") or context.detect,
         dict_terms=cfg.get("dictionary", []),
         entries=entries,

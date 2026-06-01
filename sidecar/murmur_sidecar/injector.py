@@ -13,14 +13,27 @@ import time
 
 log = logging.getLogger("murmur.injector")
 
+# Seconds between characters when typing. pynput's bulk type() fires key events
+# as fast as SendInput allows; apps drop keystrokes that arrive faster than their
+# message pump drains them — and a dropped space ("twowords") is the most visible
+# casualty. A few ms of pacing per character lets the target keep up. Small
+# enough to stay imperceptible (~0.6s for a 100-char dictation).
+DEFAULT_CHAR_DELAY = 0.006
 
-def type_text(text, controller=None):
+
+def type_text(text, controller=None, char_delay=DEFAULT_CHAR_DELAY, sleep=None):
     if not text:
         return
     if controller is None:
         from pynput.keyboard import Controller
         controller = Controller()
-    controller.type(text)
+    if not char_delay:
+        controller.type(text)  # unpaced (opt-out): one bulk call
+        return
+    nap = sleep or time.sleep
+    for ch in text:
+        controller.type(ch)
+        nap(char_delay)  # let the target consume this keystroke before the next
 
 
 def _get_clipboard():
@@ -78,6 +91,16 @@ def paste_text(text, get_clipboard=None, set_clipboard=None, do_paste=None, slee
                 log.warning("clipboard restore failed: %s", exc)
 
 
-def make_injector(mode):
-    """Return the injector function for the configured mode."""
-    return paste_text if mode == "paste" else type_text
+def make_injector(mode, char_delay_ms=None):
+    """Return the injector function for the configured mode.
+
+    For "type" mode, ``char_delay_ms`` sets the per-character pacing (defaults to
+    DEFAULT_CHAR_DELAY when None). Pass 0 to opt out of pacing (bulk type)."""
+    if mode == "paste":
+        return paste_text
+    delay = DEFAULT_CHAR_DELAY if char_delay_ms is None else char_delay_ms / 1000.0
+
+    def typer(text, controller=None, sleep=None):
+        return type_text(text, controller=controller, char_delay=delay, sleep=sleep)
+
+    return typer
