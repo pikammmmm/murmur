@@ -45,6 +45,16 @@ New-Item -ItemType Directory -Force -Path $staged | Out-Null
 Copy-Item $frozen (Join-Path $staged 'murmur-sidecar.exe') -Force
 
 Write-Host '== Building Tauri app ==' -ForegroundColor Cyan
+# Privacy: Rust bakes absolute source paths (cargo registry, workspace) into the
+# binary for panic locations — these live under the build user's home and would
+# leak the Windows username in a public release. Remap the home prefix to a
+# generic placeholder so the shipped exe carries no username. We read it from
+# $env:USERPROFILE (never hardcode it) so THIS script stays free of personal
+# info too. Release-only: keeps debug rebuilds fast (RUSTFLAGS changes bust the
+# build cache).
+if ($Release) {
+    $env:RUSTFLAGS = "--remap-path-prefix=$env:USERPROFILE=C:\Users\user"
+}
 Push-Location (Join-Path $root 'src-tauri')
 try {
     if ($Release) { cargo tauri build } else { cargo build }
