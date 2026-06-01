@@ -68,9 +68,15 @@ class App:
         self._rebuild()
 
     def _rebuild(self):
-        """Rebuild the corrector + STT bias string from dictionary + entries."""
+        """Rebuild the corrector + STT bias string from dictionary + entries.
+
+        The corrector is precision-tuned and stays user-driven (dictionary +
+        learned corrections only). The STT bias additionally folds in the
+        built-in technical vocabulary, so common program/brand words are
+        recognized out of the box without risking auto-correction."""
+        from .vocab import for_bias
         self.corrector = Corrector(self.dict_terms, self.entries)
-        self.bias_prompt = build_bias_string(build_bias_terms(self.dict_terms, self.entries))
+        self.bias_prompt = build_bias_string(build_bias_terms(for_bias(self.dict_terms), self.entries))
 
     # --- commands ---------------------------------------------------------
     def start(self):

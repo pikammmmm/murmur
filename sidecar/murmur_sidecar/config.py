@@ -19,7 +19,7 @@ DEFAULTS = {
         "language": "en",
         "groq_model": "whisper-large-v3-turbo",
         "openai_model": "gpt-4o-transcribe",
-        "local_model": "base",         # faster-whisper size for the offline fallback
+        "local_model": "small",        # faster-whisper size for the offline fallback (small > base accuracy)
         "beam_size": 5,
         "vad_filter": True,
     },
