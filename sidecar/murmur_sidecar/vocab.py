@@ -39,6 +39,12 @@ BASE_VOCAB = [
     "autostart", "async", "await", "OAuth", "API", "SDK", "CLI", "JSON",
     "regex", "repo", "README", "localhost", "frontend", "backend", "runtime",
     "plugin", "webhook", "endpoint", "GPU", "CPU",
+    # gaming / internet slang the user uses (nudges the cloud/local paths; the
+    # GPU path leans on CASING below + the model's own slang coverage)
+    "LARP", "NPC", "noob", "GG", "AFK", "DPS", "RNG", "MMO", "MOBA", "RPG",
+    "FPS", "esports", "speedrun", "ragequit", "tryhard", "clutch", "goated",
+    "cracked", "rizz", "poggers", "Twitch", "smurf", "aggro", "debuff",
+    "respawn", "cooldown", "hitbox", "matchmaking", "lobby",
 ]
 
 # Deterministic canonicalizations: exact, case-insensitive, whole-word fixes for
@@ -61,9 +67,32 @@ FIXES = [
 ]
 
 
+# Casing canonicalizations: gaming/internet acronyms + slang that models render
+# in the wrong case (e.g. "larp"->"LARP", "npc"->"NPC"). Applied as DETERMINISTIC,
+# whole-word, case-insensitive substitutions — but flagged ``fuzzy=False`` so
+# their short, collision-prone targets do NOT seed the fuzzy corrector (else e.g.
+# "ring"->"RNG" or "lark"->"LARP", which share Double-Metaphone keys). SAME SAFETY
+# RULE as FIXES: a `wrong` form must never be a normal English word, so these only
+# ever fire on the slang/acronym itself.
+CASING = [
+    ("larp", "LARP"), ("larping", "LARPing"), ("larper", "LARPer"),
+    ("larpers", "LARPers"), ("larped", "LARPed"),
+    ("afk", "AFK"), ("irl", "IRL"), ("npc", "NPC"), ("npcs", "NPCs"),
+    ("dps", "DPS"), ("rng", "RNG"), ("mmo", "MMO"), ("moba", "MOBA"),
+    ("rpg", "RPG"), ("fps", "FPS"), ("imo", "IMO"), ("imho", "IMHO"),
+    ("iirc", "IIRC"), ("afaik", "AFAIK"), ("fomo", "FOMO"),
+]
+
+
 def fix_entries():
-    """The built-in FIXES as correction entries (deterministic substitutions)."""
-    return [{"wrong": w, "right": r, "count": 0, "source": "builtin"} for w, r in FIXES]
+    """Built-in canonicalizations as correction entries (deterministic).
+
+    FIXES targets seed the fuzzy corrector too (brand names benefit from fuzzy
+    mishearing recovery); CASING targets are flagged ``fuzzy=False`` so their
+    short forms can't trigger fuzzy over-correction of ordinary words."""
+    fixes = [{"wrong": w, "right": r, "count": 0, "source": "builtin"} for w, r in FIXES]
+    casing = [{"wrong": w, "right": r, "count": 0, "source": "builtin", "fuzzy": False} for w, r in CASING]
+    return fixes + casing
 
 
 def for_bias(user_terms):

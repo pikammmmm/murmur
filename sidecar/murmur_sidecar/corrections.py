@@ -146,8 +146,13 @@ class Corrector:
         self.entries = sorted(entries or [], key=lambda e: -len(e.get("wrong", "").split()))
         self.jw_gate = jw_gate
         self.fuzzy_cutoff = fuzzy_cutoff
+        # Fuzzy/phonetic targets: the dictionary plus entry targets — EXCEPT
+        # entries flagged ``fuzzy: False`` (deterministic-only casing fixes whose
+        # short, collision-prone targets like RNG/LARP/FPS would otherwise
+        # over-correct ordinary words, e.g. "ring"->"RNG", "lark"->"LARP"). Those
+        # still apply as exact whole-word substitutions in correct() step 1.
         vocab, seen = [], set()
-        for t in list(dictionary or []) + [e["right"] for e in (entries or [])]:
+        for t in list(dictionary or []) + [e["right"] for e in (entries or []) if e.get("fuzzy", True)]:
             t = (t or "").strip()
             if t and t.lower() not in seen:
                 seen.add(t.lower())

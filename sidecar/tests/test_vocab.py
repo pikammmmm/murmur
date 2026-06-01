@@ -71,3 +71,27 @@ def test_builtin_fixes_leave_ordinary_words_untouched():
     # The fixes (and the brand targets now in vocab) must not mangle plain speech.
     s = "I will commit and merge the branch, then discard the old changes; it's ready."
     assert _correct(s) == s
+
+
+def test_slang_casing_canonicalizes_larp_and_acronyms():
+    out = _correct("yesterday i went to larp and fought an npc in the mmo")
+    assert "LARP" in out and "NPC" in out and "MMO" in out
+    assert _correct("larping all weekend") == "LARPing all weekend"
+    assert _correct("afk for a sec") == "AFK for a sec"
+    # case-insensitive: whatever case Whisper emits, we normalize to canonical.
+    assert _correct("Fps and Rpg") == "FPS and RPG"
+
+
+def test_slang_casing_does_not_over_correct_ordinary_words():
+    # The crux: short casing targets (RNG/LARP/FPS) must NOT seed the fuzzy
+    # corrector, or phonetic neighbours would be mangled. "ring" shares the
+    # Double-Metaphone key "RNK" with "RNG"; "lark" rhymes with "LARP".
+    for ordinary in ("i wear a ring on my finger", "i heard a lark sing",
+                     "we did it for a lark", "please harp on it less"):
+        assert _correct(ordinary) == ordinary
+
+
+def test_casing_targets_are_excluded_from_the_fuzzy_vocab():
+    low = {v.lower() for v in _app().corrector.vocab}
+    for casing_target in ("rng", "larp", "fps", "npc"):
+        assert casing_target not in low  # deterministic-only, never fuzzy
