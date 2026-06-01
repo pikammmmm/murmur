@@ -81,8 +81,8 @@ fn resolve_launch(config_path: &PathBuf) -> Launch {
     }
 }
 
-const OVERLAY_W: f64 = 200.0;
-const OVERLAY_H: f64 = 90.0;
+const OVERLAY_W: f64 = 300.0;
+const OVERLAY_H: f64 = 120.0;
 
 /// Create the hidden recording-indicator overlay: borderless, transparent,
 /// always-on-top, click-through, bottom-center. Non-fatal on failure.
@@ -116,6 +116,24 @@ fn setup_overlay(app: &AppHandle) {
         let _ = overlay.set_position(PhysicalPosition::new(x, y));
     }
     mlog!("overlay window created");
+}
+
+/// Drive the overlay through its states (recording -> transcribing -> hidden)
+/// with no mic involved, so the indicator can be eyeballed from the tray. Runs
+/// off-thread so the menu handler returns immediately.
+fn preview_overlay(app: &AppHandle) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let Some(w) = app.get_webview_window("overlay") else { return };
+        let _ = w.show();
+        for (state, ms) in [("recording", 1800u64), ("transcribing", 1300)] {
+            let _ = app.emit_to("overlay", "murmur:state", state);
+            std::thread::sleep(std::time::Duration::from_millis(ms));
+        }
+        let _ = app.emit_to("overlay", "murmur:state", "idle");
+        std::thread::sleep(std::time::Duration::from_millis(250)); // let it fade
+        let _ = w.hide();
+    });
 }
 
 fn open_settings(app: &AppHandle) {
@@ -216,15 +234,17 @@ fn main() {
 
             // Tray icon + menu.
             let settings_i = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+            let test_i = MenuItem::with_id(app, "test-indicator", "Preview indicator", true, None::<&str>)?;
             let pause_i = CheckMenuItem::with_id(app, "pause", "Pause dictation", true, false, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&settings_i, &pause_i, &quit_i])?;
+            let menu = Menu::with_items(app, &[&settings_i, &test_i, &pause_i, &quit_i])?;
             let pause_for_evt = pause_i.clone();
             let mut tray_builder = TrayIconBuilder::with_id("murmur-tray")
                 .tooltip(tray::tooltip_for("idle"))
                 .menu(&menu)
                 .on_menu_event(move |app, event| match event.id().as_ref() {
                     "settings" => open_settings(app),
+                    "test-indicator" => preview_overlay(app),
                     "pause" => {
                         // muda has already toggled the check; checked == paused.
                         let paused = pause_for_evt.is_checked().unwrap_or(false);

@@ -1,8 +1,9 @@
 // The Rust shell shows/hides this window and emits "murmur:state"; we just swap
-// the blob's animation class. Registered after DOMContentLoaded because
-// window.__TAURI__ isn't guaranteed populated for top-level scripts.
+// the pill's state class (idle | recording | transcribing). Registered after
+// DOMContentLoaded because window.__TAURI__ isn't guaranteed populated for
+// top-level scripts.
 function start() {
-  const blob = document.getElementById("blob");
+  const bar = document.getElementById("bar");
   const ev = window.__TAURI__ && window.__TAURI__.event;
   if (!ev) {
     setTimeout(start, 100); // __TAURI__ not ready yet
@@ -10,7 +11,7 @@ function start() {
   }
   ev.listen("murmur:state", (e) => {
     const s = e.payload;
-    blob.className = s === "recording" || s === "transcribing" ? s : "idle";
+    bar.className = s === "recording" || s === "transcribing" ? s : "idle";
   });
 }
 

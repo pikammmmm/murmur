@@ -5,7 +5,18 @@
     <link rel="stylesheet" href="overlay.css" />
   </head>
   <body>
-    <div id="blob" class="idle"></div>
+    <!-- Wispr-style "Flow Bar": a floating pill. While recording it shows a live
+         waveform + a red live-dot; while transcribing it shows a thinking pulse. -->
+    <div id="bar" class="idle">
+      <span class="dot"></span>
+      <div class="wave">
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+      </div>
+      <div class="think">
+        <i></i><i></i><i></i>
+      </div>
+    </div>
     <script src="overlay.js"></script>
   </body>
 </html>
