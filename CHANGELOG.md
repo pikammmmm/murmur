@@ -48,3 +48,17 @@
 - **Keybind:** hold **`\`** (backslash) to talk — a dual-function key (a quick tap
   still types a `\`; only a held press records). Shift / Right Ctrl / Right Alt /
   Caps Lock remain selectable in settings.
+
+## Phase 5 — distribution build
+- **Release build** (`build.ps1 -Release`): frozen PyInstaller sidecar
+  (`murmur-sidecar.exe`, ~101 MB, no Python needed) + optimized Tauri shell
+  (`murmur.exe`, 3.5 MB) + WiX MSI installer (`murmur_0.1.0_x64_en-US.msi`).
+- **Installer fix:** the sidecar is now embedded as a bundle resource and
+  installs next to the shell — previously the MSI shipped only the 3.5 MB shell,
+  so an installed copy launched a dead UI with no sidecar. `resolve_launch` also
+  checks a `resources/` subdir as a fallback. Verified by admin-extracting the
+  MSI: `PFiles\murmur\{murmur.exe, murmur-sidecar.exe}` land side by side.
+- **Verified:** 145 Python + 22 Rust tests pass; the frozen sidecar boots
+  standalone (loads faster-whisper base int8, warms, emits state events, exits
+  clean) — confirming the onefile's native deps (ctranslate2, onnxruntime)
+  resolve at runtime.
