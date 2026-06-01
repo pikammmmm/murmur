@@ -18,12 +18,19 @@ if (-not (Test-Path $venvPy)) {
 
 Write-Host '== Freezing Python sidecar ==' -ForegroundColor Cyan
 & $venvPy -m pip install --quiet pyinstaller
+# The frozen sidecar is CPU-only by design. The optional GPU stack (torch,
+# torch-directml, openai-whisper) may be present in the venv for local "gpu"-
+# provider use, but it must NOT be bundled (it's ~GBs and the "gpu" provider
+# runs via the dev venv, not the frozen exe). directml.py imports it lazily, so
+# excluding it is safe: a frozen install just uses the CPU faster-whisper path.
 & $venvPy -m PyInstaller --onefile --name murmur-sidecar `
     --distpath (Join-Path $sidecar 'dist') `
     --workpath (Join-Path $sidecar 'build_pyi') `
     --specpath (Join-Path $sidecar 'build_pyi') `
     --collect-all faster_whisper --collect-all ctranslate2 `
     --collect-all onnxruntime --collect-all tokenizers `
+    --exclude-module torch --exclude-module torchvision `
+    --exclude-module torch_directml --exclude-module whisper `
     (Join-Path $sidecar 'main.py')
 
 $frozen = Join-Path $sidecar 'dist\murmur-sidecar.exe'

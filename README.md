@@ -6,6 +6,20 @@ text is typed into whatever field is focused (email, chat, code editor, browser,
 anywhere). No subscription; running cost is a few cents a month — or **$0** fully
 offline with no API keys at all.
 
+## Download
+
+Windows 10/11, 64-bit:
+
+- **[Installer (.msi)](https://github.com/pikammmmm/murmur/releases/latest/download/murmur-Setup.msi)** — recommended.
+- **[Portable (.zip)](https://github.com/pikammmmm/murmur/releases/latest/download/murmur-portable-x64.zip)** — unzip and run `murmur.exe`, no install.
+- [All releases](https://github.com/pikammmmm/murmur/releases)
+
+A tray icon appears; hold **`\`** and speak. Works **offline** out of the box
+(local CPU transcription); add a Groq or Anthropic key in tray → Settings for
+faster cloud STT + AI formatting. GPU transcription (large-v3-turbo on your own
+GPU) is a from-source option — see [Run from source](#run-from-source-dev) and
+`sidecar/requirements-gpu.txt`.
+
 ## How it works
 
 A native **Rust/Tauri shell** drives a **Python sidecar** over a tiny
