@@ -21,9 +21,9 @@ body {
   height: 44px;
   padding: 0 20px;
   border-radius: 18px;
-  background: rgba(20, 21, 26, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  background: rgba(18, 19, 24, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.07);
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
   opacity: 0;
@@ -37,51 +37,55 @@ body {
   transform: translateY(0) scale(1);
 }
 
-/* The Wave emblem: five fat rounded holographic bars in the icon's symmetric
-   shape (short-tall-tallest-tall-short). This IS the app icon, in a row. */
+/* Flowing holographic waveform — cyan -> violet -> magenta, matching the icon.
+   Staggered delays turn the shared keyframe into a smooth travelling wave. */
 .wave {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 3px;
   height: 26px;
 }
 .wave i {
-  width: 8px;
-  border-radius: 4px;
+  width: 3px;
+  height: 100%;
+  border-radius: 3px;
   background: linear-gradient(180deg, #4fe9ff 0%, #8f7bff 52%, #ff5fcf 100%);
-  filter: drop-shadow(0 0 5px rgba(143, 123, 255, 0.45));
+  filter: drop-shadow(0 0 6px rgba(143, 123, 255, 0.5));
+  transform: scaleY(0.18);
   transform-origin: center;
 }
-/* Resting heights echo the icon's wave peak. */
-.wave i:nth-child(1),
-.wave i:nth-child(5) { height: 42%; }
-.wave i:nth-child(2),
-.wave i:nth-child(4) { height: 72%; }
-.wave i:nth-child(3) { height: 100%; }
-
-/* ---- Recording: a lively, staggered dance around the resting shape. ---- */
 #bar.recording .wave i {
-  animation: dance 0.95s ease-in-out infinite;
+  animation: flow 1.4s cubic-bezier(0.37, 0, 0.34, 1) infinite;
 }
-#bar.recording .wave i:nth-child(1) { animation-delay: -0.10s; }
-#bar.recording .wave i:nth-child(2) { animation-delay: -0.45s; }
-#bar.recording .wave i:nth-child(3) { animation-delay: -0.78s; }
-#bar.recording .wave i:nth-child(4) { animation-delay: -0.30s; }
-#bar.recording .wave i:nth-child(5) { animation-delay: -0.60s; }
-@keyframes dance {
-  0%, 100% { transform: scaleY(0.6); }
+#bar.transcribing .wave i {
+  animation: flow-soft 1.9s ease-in-out infinite;
+  opacity: 0.9;
+}
+.wave i:nth-child(1)  { animation-delay: -0.00s; }
+.wave i:nth-child(2)  { animation-delay: -0.14s; }
+.wave i:nth-child(3)  { animation-delay: -0.28s; }
+.wave i:nth-child(4)  { animation-delay: -0.42s; }
+.wave i:nth-child(5)  { animation-delay: -0.56s; }
+.wave i:nth-child(6)  { animation-delay: -0.70s; }
+.wave i:nth-child(7)  { animation-delay: -0.84s; }
+.wave i:nth-child(8)  { animation-delay: -0.98s; }
+.wave i:nth-child(9)  { animation-delay: -1.12s; }
+.wave i:nth-child(10) { animation-delay: -1.26s; }
+.wave i:nth-child(11) { animation-delay: -1.40s; }
+.wave i:nth-child(12) { animation-delay: -1.54s; }
+.wave i:nth-child(13) { animation-delay: -1.68s; }
+.wave i:nth-child(14) { animation-delay: -1.82s; }
+.wave i:nth-child(15) { animation-delay: -1.96s; }
+.wave i:nth-child(16) { animation-delay: -2.10s; }
+.wave i:nth-child(17) { animation-delay: -2.24s; }
+.wave i:nth-child(18) { animation-delay: -2.38s; }
+.wave i:nth-child(19) { animation-delay: -2.52s; }
+.wave i:nth-child(20) { animation-delay: -2.66s; }
+@keyframes flow {
+  0%, 100% { transform: scaleY(0.16); }
   50%      { transform: scaleY(1); }
 }
-
-/* ---- Transcribing: a calmer synchronized breathe + shimmer. ---- */
-#bar.transcribing .wave i {
-  animation: breathe 1.4s ease-in-out infinite;
-}
-#bar.transcribing .wave i:nth-child(2) { animation-delay: 0.10s; }
-#bar.transcribing .wave i:nth-child(3) { animation-delay: 0.20s; }
-#bar.transcribing .wave i:nth-child(4) { animation-delay: 0.30s; }
-#bar.transcribing .wave i:nth-child(5) { animation-delay: 0.40s; }
-@keyframes breathe {
-  0%, 100% { transform: scaleY(0.6);  opacity: 0.6; }
-  50%      { transform: scaleY(1);    opacity: 1; }
+@keyframes flow-soft {
+  0%, 100% { transform: scaleY(0.18); }
+  50%      { transform: scaleY(0.55); }
 }
