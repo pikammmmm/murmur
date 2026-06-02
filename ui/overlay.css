@@ -13,15 +13,14 @@ body {
   user-select: none;
 }
 
-/* The pill — Wispr "Flow Bar" style: dark frosted glass, floating.
-   Matches the app icon's dark glass badge. */
+/* The pill — dark frosted glass, mirroring the app icon's badge. */
 #bar {
   display: inline-flex;
   align-items: center;
-  gap: 11px;
+  justify-content: center;
   height: 44px;
-  padding: 0 18px;
-  border-radius: 22px;
+  padding: 0 20px;
+  border-radius: 18px;
   background: rgba(20, 21, 26, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.09);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -38,90 +37,51 @@ body {
   transform: translateY(0) scale(1);
 }
 
-/* The live/status dot — on the Wave icon's holographic palette
-   (magenta while recording, cyan while transcribing). */
-.dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  flex: none;
-  background: #ff5fcf;
-}
-#bar.recording .dot {
-  background: #ff5fcf;
-  animation: live 1.3s ease-in-out infinite;
-}
-#bar.transcribing .dot {
-  background: #4fe9ff;
-  animation: live-blue 1.3s ease-in-out infinite;
-}
-@keyframes live {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 95, 207, 0.55); opacity: 1; }
-  50%      { box-shadow: 0 0 0 6px rgba(255, 95, 207, 0); opacity: 0.65; }
-}
-@keyframes live-blue {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(79, 233, 255, 0.5); opacity: 1; }
-  50%      { box-shadow: 0 0 0 6px rgba(79, 233, 255, 0); opacity: 0.7; }
-}
-
-/* ---- Recording: live waveform ----
-   Holographic cyan -> violet -> magenta bars, matching the Wave app icon. */
+/* The Wave emblem: five fat rounded holographic bars in the icon's symmetric
+   shape (short-tall-tallest-tall-short). This IS the app icon, in a row. */
 .wave {
-  display: none;
+  display: flex;
   align-items: center;
-  gap: 3px;
-  height: 24px;
+  gap: 6px;
+  height: 26px;
 }
-#bar.recording .wave { display: flex; }
 .wave i {
-  width: 3px;
-  height: 100%;
-  border-radius: 2px;
+  width: 8px;
+  border-radius: 4px;
   background: linear-gradient(180deg, #4fe9ff 0%, #8f7bff 52%, #ff5fcf 100%);
-  transform: scaleY(0.28);
+  filter: drop-shadow(0 0 5px rgba(143, 123, 255, 0.45));
   transform-origin: center;
-  animation: wave 0.9s ease-in-out infinite;
 }
-/* Staggered, slightly irregular delays so it reads as a real voice waveform. */
-.wave i:nth-child(1)  { animation-delay: -0.86s; }
-.wave i:nth-child(2)  { animation-delay: -0.20s; }
-.wave i:nth-child(3)  { animation-delay: -0.54s; }
-.wave i:nth-child(4)  { animation-delay: -0.08s; }
-.wave i:nth-child(5)  { animation-delay: -0.68s; }
-.wave i:nth-child(6)  { animation-delay: -0.34s; }
-.wave i:nth-child(7)  { animation-delay: -0.92s; }
-.wave i:nth-child(8)  { animation-delay: -0.14s; }
-.wave i:nth-child(9)  { animation-delay: -0.60s; }
-.wave i:nth-child(10) { animation-delay: -0.42s; }
-.wave i:nth-child(11) { animation-delay: -0.04s; }
-.wave i:nth-child(12) { animation-delay: -0.76s; }
-.wave i:nth-child(13) { animation-delay: -0.28s; }
-.wave i:nth-child(14) { animation-delay: -0.50s; }
-@keyframes wave {
-  0%, 100% { transform: scaleY(0.28); }
+/* Resting heights echo the icon's wave peak. */
+.wave i:nth-child(1),
+.wave i:nth-child(5) { height: 42%; }
+.wave i:nth-child(2),
+.wave i:nth-child(4) { height: 72%; }
+.wave i:nth-child(3) { height: 100%; }
+
+/* ---- Recording: a lively, staggered dance around the resting shape. ---- */
+#bar.recording .wave i {
+  animation: dance 0.95s ease-in-out infinite;
+}
+#bar.recording .wave i:nth-child(1) { animation-delay: -0.10s; }
+#bar.recording .wave i:nth-child(2) { animation-delay: -0.45s; }
+#bar.recording .wave i:nth-child(3) { animation-delay: -0.78s; }
+#bar.recording .wave i:nth-child(4) { animation-delay: -0.30s; }
+#bar.recording .wave i:nth-child(5) { animation-delay: -0.60s; }
+@keyframes dance {
+  0%, 100% { transform: scaleY(0.6); }
   50%      { transform: scaleY(1); }
 }
 
-/* ---- Transcribing: thinking pulse (violet, on-palette) ---- */
-.think {
-  display: none;
-  align-items: center;
-  gap: 6px;
-  height: 24px;
-  padding: 0 18px;
+/* ---- Transcribing: a calmer synchronized breathe + shimmer. ---- */
+#bar.transcribing .wave i {
+  animation: breathe 1.4s ease-in-out infinite;
 }
-#bar.transcribing .think { display: flex; }
-.think i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #a98bff;
-  opacity: 0.4;
-  animation: think 1.1s ease-in-out infinite;
-}
-.think i:nth-child(2) { animation-delay: 0.16s; }
-.think i:nth-child(3) { animation-delay: 0.32s; }
-@keyframes think {
-  0%, 100% { transform: translateY(0); opacity: 0.35; }
-  50%      { transform: translateY(-5px); opacity: 1; }
+#bar.transcribing .wave i:nth-child(2) { animation-delay: 0.10s; }
+#bar.transcribing .wave i:nth-child(3) { animation-delay: 0.20s; }
+#bar.transcribing .wave i:nth-child(4) { animation-delay: 0.30s; }
+#bar.transcribing .wave i:nth-child(5) { animation-delay: 0.40s; }
+@keyframes breathe {
+  0%, 100% { transform: scaleY(0.6);  opacity: 0.6; }
+  50%      { transform: scaleY(1);    opacity: 1; }
 }
