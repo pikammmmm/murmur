@@ -49,8 +49,8 @@ body {
   width: 3px;
   height: 100%;
   border-radius: 3px;
-  background: linear-gradient(180deg, #4fe9ff 0%, #8f7bff 52%, #ff5fcf 100%);
-  filter: drop-shadow(0 0 6px rgba(143, 123, 255, 0.5));
+  background: linear-gradient(180deg, #ffffff 0%, #c6c6cc 100%);
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.22));
   transform: scaleY(0.18);
   transform-origin: center;
 }
