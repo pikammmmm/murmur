@@ -136,6 +136,14 @@ fn preview_overlay(app: &AppHandle) {
     std::thread::spawn(move || {
         let Some(w) = app.get_webview_window("overlay") else { return };
         let _ = w.show();
+        let cloud = app
+            .try_state::<AppState>()
+            .map(|st| {
+                let c = st.config.lock().unwrap();
+                c.stt.accuracy_mode || c.stt.provider == "groq" || c.stt.provider == "openai"
+            })
+            .unwrap_or(false);
+        let _ = app.emit_to("overlay", "murmur:engine", if cloud { "cloud" } else { "local" });
         for (state, ms) in [("recording", 1800u64), ("transcribing", 1300)] {
             let _ = app.emit_to("overlay", "murmur:state", state);
             std::thread::sleep(std::time::Duration::from_millis(ms));
@@ -218,11 +226,25 @@ fn main() {
                     }
                     if let Some(w) = evt_handle.get_webview_window("overlay") {
                         let _ = evt_handle.emit_to("overlay", "murmur:state", s.clone());
-                        let want = matches!(s.as_str(), "recording" | "transcribing")
-                            && evt_handle
-                                .try_state::<AppState>()
-                                .map(|st| st.config.lock().unwrap().overlay)
-                                .unwrap_or(true);
+                        // Read overlay-enabled + cloud-vs-local in one lock; tell the
+                        // overlay which engine is active so it colors the waveform
+                        // (orange = cloud STT, white = on-device).
+                        let (overlay_on, cloud) = evt_handle
+                            .try_state::<AppState>()
+                            .map(|st| {
+                                let c = st.config.lock().unwrap();
+                                let cloud = c.stt.accuracy_mode
+                                    || c.stt.provider == "groq"
+                                    || c.stt.provider == "openai";
+                                (c.overlay, cloud)
+                            })
+                            .unwrap_or((true, false));
+                        let _ = evt_handle.emit_to(
+                            "overlay",
+                            "murmur:engine",
+                            if cloud { "cloud" } else { "local" },
+                        );
+                        let want = matches!(s.as_str(), "recording" | "transcribing") && overlay_on;
                         let _ = if want { w.show() } else { w.hide() };
                     }
                 }

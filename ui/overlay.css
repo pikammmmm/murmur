@@ -54,6 +54,11 @@ body {
   transform: scaleY(0.18);
   transform-origin: center;
 }
+/* Cloud STT (Groq/OpenAI) tints the waveform orange; on-device STT stays white. */
+body.cloud .wave i {
+  background: linear-gradient(180deg, #ffcf8a 0%, #ff7a18 100%);
+  filter: drop-shadow(0 0 5px rgba(255, 140, 40, 0.42));
+}
 #bar.recording .wave i {
   animation: flow 1.4s cubic-bezier(0.37, 0, 0.34, 1) infinite;
 }

@@ -36,6 +36,19 @@ def test_grammar_guard_is_language_agnostic():
     assert "same language" in prompts.GRAMMAR_GUARD.lower()
 
 
+def test_prompt_processes_any_language_and_never_refuses():
+    # A cloud formatter (Haiku/Llama) will otherwise sometimes REFUSE a Slovenian
+    # transcript with an English "I can only process English" meta-message — which
+    # would then get typed into the user's field. The system prompt must explicitly
+    # license non-English input and forbid refusing/translating, in BOTH modes.
+    for mode in ("faithful", "grammar"):
+        system, _ = prompts.build_messages("kratko besedilo", "generic", [], mode)
+        low = system.lower()
+        assert "any language" in low      # input may be non-English
+        assert "never refuse" in low      # must not bail with a meta-message
+        assert "translate" in low         # translation is addressed (forbidden)
+
+
 def test_offline_english_rules_skip_for_explicit_non_english():
     # English grammar fix would turn "he don't know" -> "he doesn't know"...
     assert _app("en").preview("he don't know") == "he doesn't know"

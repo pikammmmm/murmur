@@ -13,6 +13,10 @@ function start() {
     const s = e.payload;
     bar.className = s === "recording" || s === "transcribing" ? s : "idle";
   });
+  // Engine tint: orange waveform when transcribing in the cloud, white on-device.
+  ev.listen("murmur:engine", (e) => {
+    document.body.classList.toggle("cloud", e.payload === "cloud");
+  });
 }
 
 window.addEventListener("DOMContentLoaded", start);

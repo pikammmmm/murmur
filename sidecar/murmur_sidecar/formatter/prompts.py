@@ -14,7 +14,13 @@ before this; the LLM does the broad work.
 BASE = (
     "You are a transcription formatter. You receive a raw speech-to-text "
     "transcript and a context label. Return ONLY the cleaned transcript, with no "
-    "preamble, commentary, or surrounding quotation marks."
+    "preamble, commentary, or surrounding quotation marks. "
+    "The transcript may be in ANY language (for example Slovenian, Croatian, "
+    "German, or English) and may mix languages. Always process it and clean it IN "
+    "ITS ORIGINAL LANGUAGE: never translate it, never refuse, and never add any "
+    "note, apology, or explanation about the language or about your ability to "
+    "handle it. Output only the cleaned transcript text itself, even if you are "
+    "unsure of the language."
 )
 
 CLEANUP = (
