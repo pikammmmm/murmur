@@ -47,6 +47,29 @@ def test_build_bias_terms_dedup_and_high_count_first():
     assert len(terms) == len(set(t.lower() for t in terms))  # case-insensitive dedupe
 
 
+# ---------- biasing: language priming ----------
+def test_build_bias_string_plain_join_without_language():
+    assert C.build_bias_string(["GitHub", "Rust"]) == "GitHub, Rust"
+
+
+def test_build_bias_string_slovenian_primes_with_diacritics():
+    s = C.build_bias_string(["GitHub"], "sl")
+    assert "GitHub" in s                       # proper nouns still bias the recognizer
+    assert "sloven" in s.lower()               # prompt establishes Slovenian context
+    assert any(ch in s for ch in "čšž")         # carries the šumniki so Whisper emits them
+
+
+def test_build_bias_string_unknown_language_falls_back_to_plain_join():
+    # No priming text defined for English -> behaves exactly like the bare join.
+    assert C.build_bias_string(["GitHub"], "en") == "GitHub"
+
+
+def test_build_bias_string_slovenian_priming_without_terms_has_no_trailing_space():
+    s = C.build_bias_string([], "sl")
+    assert "sloven" in s.lower()
+    assert s == s.strip()                       # no dangling separator when term list is empty
+
+
 # ---------- corrector: exact ----------
 def test_corrector_exact_phrase_substitution():
     entries = [{"wrong": "glass bar", "right": "glassbar", "count": 3, "source": "learned"}]

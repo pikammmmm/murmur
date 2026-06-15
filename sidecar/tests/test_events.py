@@ -24,6 +24,27 @@ def test_helpers_emit_expected_shapes():
     assert objs[2] == {"type": "error", "message": "boom"}
 
 
+def test_emit_writes_utf8_bytes_through_buffer_for_non_ascii():
+    # Mirrors a Windows pipe: the text layer is cp1252 and cannot encode č/š/ž,
+    # so emit must go through the UTF-8 byte buffer the Rust shell decodes — not
+    # the locale-bound text .write (which would raise and silently drop the event).
+    class CP1252Stream:
+        def __init__(self):
+            self.buffer = io.BytesIO()
+
+        def write(self, s):  # pragma: no cover - asserts the wrong path isn't taken
+            s.encode("cp1252")  # would raise on Slovenian
+            raise AssertionError("emit used the text path instead of the UTF-8 buffer")
+
+        def flush(self):
+            pass
+
+    stream = CP1252Stream()
+    events.transcript("želim računati čokolado", stream)
+    decoded = stream.buffer.getvalue().decode("utf-8")
+    assert json.loads(decoded) == {"type": "transcript", "text": "želim računati čokolado"}
+
+
 def test_concurrent_emits_are_well_formed():
     buf = io.StringIO()
 

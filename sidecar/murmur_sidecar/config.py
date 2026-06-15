@@ -16,7 +16,8 @@ DEFAULTS = {
     "stt": {
         "provider": "groq",            # groq | openai | gpu | local
         "accuracy_mode": False,        # true -> use the openai gpt-4o-transcribe path
-        "language": "en",
+        "language": "en",              # decode language; "auto" lets Whisper detect
+        "bias_language": "",           # prime the STT prompt toward this language under auto-detect (e.g. "sl")
         "groq_model": "whisper-large-v3-turbo",
         "openai_model": "gpt-4o-transcribe",
         "local_model": "small",        # faster-whisper size for the offline (CPU) fallback (small > base accuracy)

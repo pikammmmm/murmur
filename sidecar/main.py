@@ -28,6 +28,18 @@ def default_config_path():
     return Path.home() / ".murmur" / "config.json"
 
 
+def force_utf8_stdio():
+    """The Rust shell speaks UTF-8 on both pipes. Windows would otherwise default
+    our stdin to the locale code page (cp1252), so inbound 'learn'/'correctadd'
+    text in Slovenian (č/š/ž) or any non-Latin-1 script would mis-decode or raise.
+    (Stdout output goes through events.emit, which writes UTF-8 bytes directly.)"""
+    for stream in (sys.stdin, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
 def setup_logging():
     logging.basicConfig(
         level=logging.INFO,
@@ -72,6 +84,7 @@ def _warm(app):
 
 
 def main(argv=None):
+    force_utf8_stdio()
     setup_logging()
     argv = argv if argv is not None else sys.argv[1:]
     cfg_path = Path(argv[0]) if argv else default_config_path()

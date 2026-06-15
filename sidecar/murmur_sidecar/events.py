@@ -17,13 +17,25 @@ _lock = threading.Lock()
 
 
 def emit(event, stream=None):
-    """Write a single JSON event line, atomic across threads."""
+    """Write a single JSON event line, atomic across threads.
+
+    Writes UTF-8 *bytes* through the stream's underlying buffer when it has one.
+    On Windows the stdout text layer defaults to the locale code page (cp1252),
+    which can't encode non-Latin-1 text — so a transcript with Slovenian č/š/ž (or
+    any non-Western script) would raise on ``write`` and be silently dropped. The
+    Rust shell decodes our stdout as UTF-8, so we emit UTF-8 regardless of locale.
+    Test/in-memory text streams (StringIO) have no ``buffer`` and take the text path."""
     target = stream if stream is not None else sys.stdout
-    line = json.dumps(event, ensure_ascii=False)
+    line = json.dumps(event, ensure_ascii=False) + "\n"
     with _lock:
         try:
-            target.write(line + "\n")
-            target.flush()
+            buffer = getattr(target, "buffer", None)
+            if buffer is not None:
+                buffer.write(line.encode("utf-8"))
+                buffer.flush()
+            else:
+                target.write(line)
+                target.flush()
         except Exception:
             # A broken stdout (parent gone) must not raise inside a worker.
             pass

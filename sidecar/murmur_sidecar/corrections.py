@@ -118,8 +118,30 @@ def build_bias_terms(dictionary, entries, limit=80):
     return terms[:limit]
 
 
-def build_bias_string(terms):
-    return ", ".join(terms)
+# Per-language priming lead-ins for the STT prompt. Whisper conditions on the
+# prompt's language and orthography, so a short natural fragment in the target
+# language nudges auto-detect toward it AND makes the model emit the right
+# accented characters. For Slovenian this fragment deliberately carries all three
+# šumniki (č, š, ž) plus everyday accented words — without it, a clip is often
+# mis-detected as a neighbouring Slavic language or has its diacritics dropped.
+# Add other languages here as needed; an unlisted language gets no priming.
+PRIMING = {
+    "sl": (
+        "Posnetek v slovenščini. Pogoste besede: računalnik, številka, "
+        "želim, čeprav, prošnja, mogoče, današnji, hvala."
+    ),
+}
+
+
+def build_bias_string(terms, language=None):
+    """The Whisper/cloud ``prompt`` string. ``language`` (e.g. ``"sl"``) prepends a
+    priming lead-in in that language so recognition leans toward it; the proper-noun
+    bias terms follow so they're still spelled correctly even mid-sentence."""
+    lead = PRIMING.get((language or "").strip().lower())
+    body = ", ".join(terms)
+    if not lead:
+        return body
+    return lead + " " + body if body else lead
 
 
 # ---------- correction engine ----------

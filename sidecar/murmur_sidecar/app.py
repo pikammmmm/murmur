@@ -22,7 +22,7 @@ from .corrections import (
 )
 from .formatter.base import format_text
 from .grammar import fix_grammar
-from .stt.base import transcribe_with_fallback
+from .stt.base import norm_lang, transcribe_with_fallback
 from .voicecommands import apply_voice_commands
 
 log = logging.getLogger("murmur.app")
@@ -32,7 +32,7 @@ class App:
     def __init__(
         self, recorder, transcriber, fallback, formatter, type_text, detect,
         dict_terms=None, entries=None, corrections_path=None, format_mode="faithful",
-        language="en", voice_commands=True, audio_cues=True, save_history=True,
+        language="en", bias_language="", voice_commands=True, audio_cues=True, save_history=True,
         history_path=None, stats_path=None, sample_rate=16000, max_seconds=60,
         emit_state=None, emit_transcript=None, emit_error=None,
         emit_last_raw=None, emit_corrections=None, use_threads=True,
@@ -48,6 +48,7 @@ class App:
         self.corrections_path = corrections_path
         self.format_mode = format_mode
         self.language = language
+        self.bias_language = bias_language
         self.voice_commands = voice_commands
         self.audio_cues = audio_cues
         self.save_history = save_history
@@ -85,7 +86,13 @@ class App:
         # learned/manual corrections (user entries last so they can override).
         entries = fix_entries() + list(self.entries or [])
         self.corrector = Corrector(self.dict_terms, entries)
-        self.bias_prompt = build_bias_string(build_bias_terms(for_bias(self.dict_terms), self.entries))
+        # Prime the STT prompt in the spoken language: an explicit decode language
+        # wins; under auto-detect we fall back to bias_language so a mostly-Slovenian
+        # user is still nudged toward Slovenian without forcing the decode.
+        prime_lang = norm_lang(self.language) or (self.bias_language or "").strip().lower() or None
+        self.bias_prompt = build_bias_string(
+            build_bias_terms(for_bias(self.dict_terms), self.entries), prime_lang
+        )
 
     # --- commands ---------------------------------------------------------
     def start(self):
@@ -142,6 +149,7 @@ class App:
         self.dict_terms = cfg.get("dictionary", [])
         self.format_mode = cfg.get("formatter", {}).get("mode", "faithful")
         self.language = cfg.get("stt", {}).get("language", "en")
+        self.bias_language = cfg.get("stt", {}).get("bias_language", "")
         self.voice_commands = cfg.get("voice_commands", True)
         self.audio_cues = cfg.get("audio_cues", True)
         self.save_history = cfg.get("save_history", True)
@@ -301,6 +309,7 @@ def build_app(cfg, keys, corrections_path=None, **overrides):
         corrections_path=corrections_path,
         format_mode=cfg.get("formatter", {}).get("mode", "faithful"),
         language=cfg.get("stt", {}).get("language", "en"),
+        bias_language=cfg.get("stt", {}).get("bias_language", ""),
         voice_commands=cfg.get("voice_commands", True),
         audio_cues=cfg.get("audio_cues", True),
         save_history=cfg.get("save_history", True),

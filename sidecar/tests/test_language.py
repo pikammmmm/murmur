@@ -4,12 +4,12 @@ from murmur_sidecar.formatter import prompts
 from murmur_sidecar.stt.base import make_transcriber, norm_lang
 
 
-def _app(language):
+def _app(language, bias_language="", dict_terms=None):
     return App(
         recorder=None, transcriber=None, fallback=None, formatter=None,
         type_text=lambda t: None, detect=lambda: ("generic", "", ""),
-        dict_terms=[], entries=[], format_mode="grammar", language=language,
-        use_threads=False,
+        dict_terms=dict_terms or [], entries=[], format_mode="grammar",
+        language=language, bias_language=bias_language, use_threads=False,
     )
 
 
@@ -42,3 +42,23 @@ def test_offline_english_rules_skip_for_explicit_non_english():
     assert _app("auto").preview("he don't know") == "he doesn't know"  # harmless under auto
     # ...but it must NOT be applied when the language is explicitly Slovenian.
     assert _app("sl").preview("he don't know") == "he don't know"
+
+
+# --- STT prompt priming: nudge Whisper toward Slovenian -------------------
+def test_bias_language_primes_the_stt_prompt_in_auto_mode():
+    # User dictates mostly Slovenian but keeps auto-detect on for English clips:
+    # the decode language stays "auto" while the recognizer is primed Slovenian.
+    app = _app("auto", bias_language="sl", dict_terms=["GitHub"])
+    assert "GitHub" in app.bias_prompt                       # proper nouns still bias
+    assert any(ch in app.bias_prompt for ch in "čšž")         # primed for Slovenian
+
+
+def test_explicit_slovenian_language_also_primes():
+    app = _app("sl")
+    assert any(ch in app.bias_prompt for ch in "čšž")
+
+
+def test_plain_english_auto_mode_is_not_primed():
+    app = _app("auto", dict_terms=["GitHub"])
+    assert "sloven" not in app.bias_prompt.lower()
+    assert "GitHub" in app.bias_prompt
