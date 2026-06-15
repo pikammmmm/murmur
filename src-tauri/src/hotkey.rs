@@ -32,6 +32,7 @@ const VK_RCONTROL: u32 = 0xA3;
 const VK_RMENU: u32 = 0xA5; // right Alt
 const VK_CAPITAL: u32 = 0x14; // Caps Lock
 const VK_OEM_5: u32 = 0xDC; // the '\' key (US layout)
+const VK_ESCAPE: u32 = 0x1B; // aborts an in-progress dictation
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -209,7 +210,15 @@ fn timer_loop() {
             } else {
                 !physically_down(trig)
             };
-            if (st.is_recording() || st.is_armed()) && key_released {
+            if st.is_cancelled() {
+                // A dictation was aborted with Esc. Once the trigger is physically
+                // up — even if the key-up event was missed behind an elevated
+                // window — clear the latch so the next press can record again.
+                if key_released {
+                    st.clear_cancelled();
+                }
+                None
+            } else if (st.is_recording() || st.is_armed()) && key_released {
                 let a = st.on_trigger_up(now);
                 PENDING.store(false, Ordering::SeqCst); // clear any stuck text-key state
                 a
@@ -242,6 +251,19 @@ unsafe extern "system" fn hook_proc(code: i32, w: WPARAM, l: LPARAM) -> LRESULT 
     };
     let now = now_ms();
 
+    // Esc aborts an in-progress dictation: discard the audio, type nothing. We act
+    // only while actually recording (cancel() returns an action), and swallow that
+    // Esc so the focused window doesn't also receive it. A plain Esc with nothing
+    // in progress falls through untouched (and behaves normally). When merely armed,
+    // cancel() silently disarms + latches but returns None, so Esc still passes.
+    if down && vk == VK_ESCAPE {
+        let act = state.lock().unwrap().cancel();
+        if let Some(a) = act {
+            fire(a);
+            return LRESULT(1);
+        }
+    }
+
     if is_text_key(trig) {
         // Dual-function text key (e.g. '\'): suppress it. Hold past the threshold
         // = push-to-talk; a quick tap = synthesize the character so typing works.
@@ -253,11 +275,18 @@ unsafe extern "system" fn hook_proc(code: i32, w: WPARAM, l: LPARAM) -> LRESULT 
                 return LRESULT(1); // swallow (incl. auto-repeat)
             }
             if up {
-                let act = state.lock().unwrap().on_trigger_up(now);
+                // Capture the cancel latch BEFORE on_trigger_up clears it: a
+                // release that ends an Esc-aborted dictation must type nothing,
+                // not fall through to the tap path and emit a stray '\'.
+                let (act, was_cancelled) = {
+                    let mut st = state.lock().unwrap();
+                    let c = st.is_cancelled();
+                    (st.on_trigger_up(now), c)
+                };
                 PENDING.store(false, Ordering::SeqCst);
                 if matches!(act, Some(Action::StopRecording)) {
                     fire(Action::StopRecording);
-                } else {
+                } else if !was_cancelled {
                     synth_key(VK_OEM_5 as u16); // it was a tap — type the '\'
                 }
                 return LRESULT(1);

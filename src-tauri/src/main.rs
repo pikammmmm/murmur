@@ -322,6 +322,7 @@ fn main() {
                     match action {
                         ptt::Action::StartRecording => state.supervisor.send("start"),
                         ptt::Action::StopRecording => state.supervisor.send("stop"),
+                        ptt::Action::Cancel => state.supervisor.send("cancel"),
                     }
                 }
             });
