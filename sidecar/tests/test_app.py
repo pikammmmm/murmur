@@ -135,6 +135,90 @@ def test_engine_white_for_on_device_stt():
     assert rec["engine"][-1] == "local"
 
 
+class TrackingRecorder:
+    def __init__(self, audio):
+        self.audio = audio
+        self.stopped = 0
+
+    def start(self):
+        pass
+
+    def stop(self):
+        self.stopped += 1
+        return self.audio
+
+
+class SpyTranscriber:
+    def __init__(self, text):
+        self.text = text
+        self.calls = 0
+
+    def transcribe(self, audio, sr, prompt):
+        self.calls += 1
+        return self.text
+
+
+def make_cancel_app():
+    recorder = TrackingRecorder(np.ones(1600, dtype=np.float32))
+    stt = SpyTranscriber("must not be used")
+    rec = {"states": [], "transcripts": [], "typed": []}
+    app = App(
+        recorder=recorder,
+        transcriber=stt,
+        fallback=None,
+        formatter=FmtEcho("formatted"),
+        type_text=lambda t: rec["typed"].append(t),
+        detect=lambda: ("generic", "x.exe", "title"),
+        dict_terms=[],
+        max_seconds=0,
+        audio_cues=False,
+        emit_state=lambda s: rec["states"].append(s),
+        emit_transcript=lambda t: rec["transcripts"].append(t),
+        use_threads=False,
+    )
+    return app, recorder, stt, rec
+
+
+def test_cancel_while_recording_discards_without_transcribing():
+    app, recorder, stt, rec = make_cancel_app()
+    app.start()
+    assert rec["states"] == ["recording"]
+    app.cancel()
+    assert recorder.stopped == 1        # capture was stopped (stream closed)
+    assert stt.calls == 0               # audio never went to the transcriber
+    assert rec["typed"] == []           # nothing was typed
+    assert rec["transcripts"] == []
+    assert rec["states"][-1] == "idle"  # back to idle, no 'transcribing' state
+
+
+def test_cancel_when_idle_is_a_noop():
+    app, recorder, stt, rec = make_cancel_app()
+    app.cancel()
+    assert recorder.stopped == 0
+    assert rec["states"] == []
+
+
+def test_can_record_again_after_cancel():
+    app, recorder, stt, rec = make_cancel_app()
+    app.start()
+    app.cancel()
+    app.start()
+    assert rec["states"][-1] == "recording"  # state machine reset; re-arm works
+
+
+def test_stdin_loop_dispatches_cancel():
+    class FakeApp:
+        def __init__(self):
+            self.calls = []
+
+        def cancel(self):
+            self.calls.append("cancel")
+
+    app = FakeApp()
+    stdin_command_loop(app, stream=io.StringIO("cancel\nquit\n"))
+    assert app.calls == ["cancel"]
+
+
 def test_stdin_loop_dispatches_until_quit():
     class FakeApp:
         def __init__(self):

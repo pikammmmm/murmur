@@ -157,6 +157,26 @@ class App:
         else:
             self.start()
 
+    def cancel(self):
+        """Abort an in-progress recording: stop capture, DISCARD the audio, and
+        return to idle without transcribing or typing. A no-op unless we're
+        recording — once transcription has started the result is already on its
+        way to the field and can't be un-typed."""
+        with self._lock:
+            if not self._recording:
+                return
+            self._recording = False
+            if self._max_timer is not None:
+                self._max_timer.cancel()
+                self._max_timer = None
+        try:
+            self.recorder.stop()  # close the stream; the returned audio is dropped
+        except Exception as exc:
+            log.warning("cancel: recorder stop failed: %s", exc)
+        if self.audio_cues:
+            cues.cancel()
+        self._emit_state("idle")
+
     def apply_config(self, cfg, keys):
         from .formatter.base import make_formatter
         from .injector import make_injector
@@ -371,6 +391,8 @@ def stdin_command_loop(app, stream=None, on_reload=None):
                 app.start()
             elif verb == "stop":
                 app.stop()
+            elif verb == "cancel":
+                app.cancel()
             elif verb == "toggle":
                 app.toggle()
             elif verb == "learn":

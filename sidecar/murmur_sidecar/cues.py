@@ -10,6 +10,7 @@ import threading
 START = [(600, 70), (900, 70)]   # ascending
 STOP = [(900, 70), (600, 70)]    # descending
 ERR = [(300, 250)]               # low buzz
+CANCEL = [(500, 60), (350, 60)]  # quick low descending — dictation discarded
 
 
 def _default_player(pairs):
@@ -39,3 +40,7 @@ def record_stop(player=None):
 
 def error(player=None):
     play(ERR, player)
+
+
+def cancel(player=None):
+    play(CANCEL, player)
