@@ -23,6 +23,9 @@ pub enum SidecarEvent {
     Corrections(serde_json::Value),
     /// Result of a "Try it" preview request.
     Preview(String),
+    /// Which engine served the last dictation: "cloud" or "local". Tints the overlay
+    /// (orange = cloud, white = local / a cloud key that ran out and fell back).
+    Engine(String),
 }
 
 /// Parse one stdout line into an event. Returns None for blank/foreign lines.
@@ -37,6 +40,7 @@ pub fn parse_event(line: &str) -> Option<SidecarEvent> {
             v.get("entries").cloned().unwrap_or_else(|| serde_json::Value::Array(vec![])),
         )),
         "preview" => Some(SidecarEvent::Preview(v.get("text").and_then(|x| x.as_str()).unwrap_or("").to_string())),
+        "engine" => Some(SidecarEvent::Engine(v.get("value").and_then(|x| x.as_str()).unwrap_or("local").to_string())),
         _ => None,
     }
 }
@@ -149,6 +153,8 @@ mod tests {
         assert_eq!(parse_event(r#"{"type":"state","state":"idle"}"#), Some(SidecarEvent::State("idle".into())));
         assert_eq!(parse_event(r#"{"type":"transcript","text":"hi"}"#), Some(SidecarEvent::Transcript("hi".into())));
         assert_eq!(parse_event(r#"{"type":"error","message":"boom"}"#), Some(SidecarEvent::Error("boom".into())));
+        assert_eq!(parse_event(r#"{"type":"engine","value":"cloud"}"#), Some(SidecarEvent::Engine("cloud".into())));
+        assert_eq!(parse_event(r#"{"type":"engine"}"#), Some(SidecarEvent::Engine("local".into())));
     }
 
     #[test]

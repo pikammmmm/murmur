@@ -27,15 +27,30 @@ from .voicecommands import apply_voice_commands
 
 log = logging.getLogger("murmur.app")
 
+# Providers that run in the cloud. Used to decide the overlay tint: a dictation is
+# "cloud" (orange) only when a cloud engine actually served it; if a cloud key runs
+# out and the call falls back/fails, it's "local" (white).
+CLOUD_STT = ("groq", "openai")
+CLOUD_FORMATTERS = ("anthropic", "groq", "cerebras")
+
+
+def _stt_is_cloud(stt):
+    return bool(stt.get("accuracy_mode")) or stt.get("provider") in CLOUD_STT
+
+
+def _formatter_is_cloud(fmt):
+    return fmt.get("provider") in CLOUD_FORMATTERS
+
 
 class App:
     def __init__(
         self, recorder, transcriber, fallback, formatter, type_text, detect,
         dict_terms=None, entries=None, corrections_path=None, format_mode="faithful",
-        language="en", bias_language="", voice_commands=True, audio_cues=True, save_history=True,
+        language="en", bias_language="", stt_cloud=False, formatter_cloud=False,
+        voice_commands=True, audio_cues=True, save_history=True,
         history_path=None, stats_path=None, sample_rate=16000, max_seconds=60,
         emit_state=None, emit_transcript=None, emit_error=None,
-        emit_last_raw=None, emit_corrections=None, use_threads=True,
+        emit_last_raw=None, emit_corrections=None, emit_engine=None, use_threads=True,
     ):
         self.recorder = recorder
         self.transcriber = transcriber
@@ -49,6 +64,8 @@ class App:
         self.format_mode = format_mode
         self.language = language
         self.bias_language = bias_language
+        self.stt_cloud = stt_cloud
+        self.formatter_cloud = formatter_cloud
         self.voice_commands = voice_commands
         self.audio_cues = audio_cues
         self.save_history = save_history
@@ -61,6 +78,7 @@ class App:
         self._emit_error = emit_error or events.error
         self._emit_last_raw = emit_last_raw
         self._emit_corrections = emit_corrections
+        self._emit_engine = emit_engine or events.engine
         self.use_threads = use_threads
         self._lock = threading.Lock()
         self._recording = False
@@ -150,6 +168,8 @@ class App:
         self.format_mode = cfg.get("formatter", {}).get("mode", "faithful")
         self.language = cfg.get("stt", {}).get("language", "en")
         self.bias_language = cfg.get("stt", {}).get("bias_language", "")
+        self.stt_cloud = _stt_is_cloud(cfg.get("stt", {}))
+        self.formatter_cloud = _formatter_is_cloud(cfg.get("formatter", {}))
         self.voice_commands = cfg.get("voice_commands", True)
         self.audio_cues = cfg.get("audio_cues", True)
         self.save_history = cfg.get("save_history", True)
@@ -242,7 +262,7 @@ class App:
             if audio is None or len(audio) == 0:
                 return
             profile, _exe, _title = self.detect()
-            raw = transcribe_with_fallback(
+            raw, used_fallback = transcribe_with_fallback(
                 self.transcriber, self.fallback, audio, self.sample_rate, self.bias_prompt
             )
             if not raw:
@@ -261,7 +281,14 @@ class App:
             profile = intent.detect_profile(corrected, profile)
             if profile == "list":
                 corrected = intent.listify(corrected)
-            text = format_text(self.formatter, corrected, profile, self.dict_terms, self.format_mode)
+            text, fmt_ok = format_text(self.formatter, corrected, profile, self.dict_terms, self.format_mode)
+            # Overlay tint: orange (cloud) only if a cloud STT served this dictation
+            # without falling back AND any cloud formatter call succeeded; otherwise
+            # white (on-device, or a cloud key that ran out / errored and fell back).
+            cloud_ok = self.stt_cloud and not used_fallback
+            if self.formatter_cloud and not fmt_ok:
+                cloud_ok = False
+            self._emit_engine("cloud" if cloud_ok else "local")
             if text:
                 try:
                     self.type_text(text)
@@ -310,6 +337,8 @@ def build_app(cfg, keys, corrections_path=None, **overrides):
         format_mode=cfg.get("formatter", {}).get("mode", "faithful"),
         language=cfg.get("stt", {}).get("language", "en"),
         bias_language=cfg.get("stt", {}).get("bias_language", ""),
+        stt_cloud=_stt_is_cloud(cfg.get("stt", {})),
+        formatter_cloud=_formatter_is_cloud(cfg.get("formatter", {})),
         voice_commands=cfg.get("voice_commands", True),
         audio_cues=cfg.get("audio_cues", True),
         save_history=cfg.get("save_history", True),

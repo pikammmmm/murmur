@@ -13,15 +13,16 @@ class FakeFail:
 
 
 def test_primary_used():
-    assert transcribe_with_fallback(FakeOK(), FakeOK(), b"", 16000, "") == "hello world"
+    assert transcribe_with_fallback(FakeOK(), FakeOK(), b"", 16000, "") == ("hello world", False)
 
 
 def test_falls_back_on_primary_error():
-    assert transcribe_with_fallback(FakeFail(), FakeOK(), b"", 16000, "") == "hello world"
+    # primary raised -> fallback served it -> used_fallback True (cloud "ran out")
+    assert transcribe_with_fallback(FakeFail(), FakeOK(), b"", 16000, "") == ("hello world", True)
 
 
 def test_both_fail_returns_empty():
-    assert transcribe_with_fallback(FakeFail(), FakeFail(), b"", 16000, "") == ""
+    assert transcribe_with_fallback(FakeFail(), FakeFail(), b"", 16000, "") == ("", True)
 
 
 def _cfg(tmp_path):

@@ -32,8 +32,19 @@ class FmtEcho:
         return self.out
 
 
-def make_app(audio, raw="hello world", formatted="Hello, world.", profile="generic"):
-    rec = {"states": [], "transcripts": [], "errors": [], "typed": []}
+class FailTranscriber:
+    def transcribe(self, audio, sr, prompt):
+        raise RuntimeError("cloud STT down")
+
+
+class FailFormatter:
+    def complete(self, system, user):
+        raise RuntimeError("cloud key out of credits")
+
+
+def make_app(audio, raw="hello world", formatted="Hello, world.", profile="generic",
+             stt_cloud=False, formatter_cloud=False):
+    rec = {"states": [], "transcripts": [], "errors": [], "typed": [], "engine": []}
     app = App(
         recorder=FakeRecorder(audio),
         transcriber=FixedTranscriber(raw),
@@ -43,9 +54,12 @@ def make_app(audio, raw="hello world", formatted="Hello, world.", profile="gener
         detect=lambda: (profile, "x.exe", "title"),
         dict_terms=[],
         max_seconds=0,
+        stt_cloud=stt_cloud,
+        formatter_cloud=formatter_cloud,
         emit_state=lambda s: rec["states"].append(s),
         emit_transcript=lambda t: rec["transcripts"].append(t),
         emit_error=lambda m: rec["errors"].append(m),
+        emit_engine=lambda v: rec["engine"].append(v),
         use_threads=False,
     )
     return app, rec
@@ -85,6 +99,40 @@ def test_toggle_flips_record_and_stop():
     app.toggle()  # -> stop -> process
     assert rec["states"][-1] == "idle"
     assert rec["typed"] == ["Hello, world."]
+
+
+def test_engine_orange_when_cloud_path_succeeds():
+    app, rec = make_app(np.ones(1600, dtype=np.float32), stt_cloud=True, formatter_cloud=True)
+    app.start()
+    app.stop()
+    assert rec["engine"][-1] == "cloud"
+
+
+def test_engine_white_when_cloud_formatter_key_runs_out():
+    # cloud STT works but the Claude/cloud cleanup call raises (key out of credits)
+    # -> the overlay must drop to white, not keep lying orange.
+    app, rec = make_app(np.ones(1600, dtype=np.float32), stt_cloud=True, formatter_cloud=True)
+    app.formatter = FailFormatter()
+    app.start()
+    app.stop()
+    assert rec["engine"][-1] == "local"
+    assert rec["typed"] == ["hello world"]  # still types the raw transcript
+
+
+def test_engine_white_when_cloud_stt_falls_back():
+    app, rec = make_app(np.ones(1600, dtype=np.float32), stt_cloud=True, formatter_cloud=False)
+    app.transcriber = FailTranscriber()
+    app.fallback = FixedTranscriber("local words")
+    app.start()
+    app.stop()
+    assert rec["engine"][-1] == "local"
+
+
+def test_engine_white_for_on_device_stt():
+    app, rec = make_app(np.ones(1600, dtype=np.float32))  # stt_cloud=False (local)
+    app.start()
+    app.stop()
+    assert rec["engine"][-1] == "local"
 
 
 def test_stdin_loop_dispatches_until_quit():

@@ -17,20 +17,24 @@ MAX_EXPANSION = 4
 
 
 def format_text(formatter, raw, profile, dict_terms, mode="faithful"):
+    """Returns ``(text, ok)``. ``ok`` is False only when the model call RAISED — e.g.
+    a cloud formatter whose key ran out of credits or failed auth. The guarded
+    fallbacks (empty/over-long output, or a passthrough provider) keep ok=True, since
+    those aren't a cloud outage. The caller uses ``ok`` to tint the overlay."""
     if not raw or not raw.strip():
-        return ""
+        return "", True
     system, user = build_messages(raw, profile, dict_terms, mode)
     try:
         out = formatter.complete(system, user)
     except Exception as exc:
         log.error("formatter failed, using raw transcript: %s", exc)
-        return raw
+        return raw, False
     if not out or not out.strip():
-        return raw
+        return raw, True
     if len(out) > MAX_EXPANSION * max(len(raw), 20):
         log.warning("formatter output suspiciously long (%d vs %d); using raw", len(out), len(raw))
-        return raw
-    return out.strip()
+        return raw, True
+    return out.strip(), True
 
 
 class _Passthrough:

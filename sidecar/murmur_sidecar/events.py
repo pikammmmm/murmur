@@ -67,3 +67,10 @@ def corrections(entries, stream=None):
 def preview(text, stream=None):
     """Result of running sample text through the offline transforms."""
     emit({"type": "preview", "text": text}, stream)
+
+
+def engine(value, stream=None):
+    """Which engine actually served the last dictation: 'cloud' (a cloud API
+    succeeded) or 'local' (on-device — including when a cloud key ran out/errored
+    and we fell back). Drives the overlay tint (orange = cloud, white = local)."""
+    emit({"type": "engine", "value": value}, stream)

@@ -11,17 +11,20 @@ log = logging.getLogger("murmur.stt")
 
 
 def transcribe_with_fallback(primary, fallback, audio, sr, prompt):
-    """Try primary, then fallback; return "" if both fail (never raises)."""
+    """Try primary, then fallback. Returns ``(text, used_fallback)`` — text is "" if
+    both fail (never raises). ``used_fallback`` is True when the primary raised and
+    the fallback produced the result, i.e. a cloud primary 'ran out' / errored and we
+    dropped to the local engine (the caller tints the overlay white for that case)."""
     try:
-        return primary.transcribe(audio, sr, prompt) or ""
+        return (primary.transcribe(audio, sr, prompt) or ""), False
     except Exception as exc:
         log.warning("primary STT failed: %s", exc)
     if fallback is not None and fallback is not primary:
         try:
-            return fallback.transcribe(audio, sr, prompt) or ""
+            return (fallback.transcribe(audio, sr, prompt) or ""), True
         except Exception as exc:
             log.error("fallback STT failed: %s", exc)
-    return ""
+    return "", True
 
 
 def norm_lang(value):

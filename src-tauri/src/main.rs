@@ -32,6 +32,8 @@ pub struct AppState {
     pub corrections: Arc<Mutex<serde_json::Value>>,
     pub last_raw: Arc<Mutex<String>>,
     pub preview: Arc<Mutex<String>>,
+    /// Last engine the sidecar reported ("cloud"/"local") — the overlay tint.
+    pub engine: Arc<Mutex<String>>,
 }
 
 /// One running instance only — a named kernel mutex survives across processes
@@ -136,14 +138,12 @@ fn preview_overlay(app: &AppHandle) {
     std::thread::spawn(move || {
         let Some(w) = app.get_webview_window("overlay") else { return };
         let _ = w.show();
-        let cloud = app
+        // Show the preview in the last-known engine tint (orange cloud / white local).
+        let eng = app
             .try_state::<AppState>()
-            .map(|st| {
-                let c = st.config.lock().unwrap();
-                c.stt.accuracy_mode || c.stt.provider == "groq" || c.stt.provider == "openai"
-            })
-            .unwrap_or(false);
-        let _ = app.emit_to("overlay", "murmur:engine", if cloud { "cloud" } else { "local" });
+            .map(|st| st.engine.lock().unwrap().clone())
+            .unwrap_or_else(|| "local".to_string());
+        let _ = app.emit_to("overlay", "murmur:engine", eng);
         for (state, ms) in [("recording", 1800u64), ("transcribing", 1300)] {
             let _ = app.emit_to("overlay", "murmur:state", state);
             std::thread::sleep(std::time::Duration::from_millis(ms));
@@ -212,12 +212,22 @@ fn main() {
             let corrections = Arc::new(Mutex::new(serde_json::Value::Array(vec![])));
             let last_raw = Arc::new(Mutex::new(String::new()));
             let preview = Arc::new(Mutex::new(String::new()));
+            // Overlay tint, seeded optimistically from the configured provider; the
+            // sidecar then reports the real engine per dictation (white if a cloud
+            // key ran out and it fell back).
+            let init_cloud = cfg.stt.accuracy_mode
+                || cfg.stt.provider == "groq"
+                || cfg.stt.provider == "openai";
+            let engine = Arc::new(Mutex::new(
+                if init_cloud { "cloud" } else { "local" }.to_string(),
+            ));
 
             // Sidecar supervisor — forward events to the tray + caches.
             let evt_handle = handle.clone();
             let corr_c = corrections.clone();
             let raw_c = last_raw.clone();
             let prev_c = preview.clone();
+            let eng_c = engine.clone();
             let supervisor = Supervisor::start(launch.clone(), move |evt| match evt {
                 SidecarEvent::State(s) => {
                     mlog!("sidecar state: {s}");
@@ -226,24 +236,13 @@ fn main() {
                     }
                     if let Some(w) = evt_handle.get_webview_window("overlay") {
                         let _ = evt_handle.emit_to("overlay", "murmur:state", s.clone());
-                        // Read overlay-enabled + cloud-vs-local in one lock; tell the
-                        // overlay which engine is active so it colors the waveform
-                        // (orange = cloud STT, white = on-device).
-                        let (overlay_on, cloud) = evt_handle
+                        // Re-assert the last-known engine tint each time the overlay
+                        // shows (orange = cloud, white = local / cloud key ran out).
+                        let _ = evt_handle.emit_to("overlay", "murmur:engine", eng_c.lock().unwrap().clone());
+                        let overlay_on = evt_handle
                             .try_state::<AppState>()
-                            .map(|st| {
-                                let c = st.config.lock().unwrap();
-                                let cloud = c.stt.accuracy_mode
-                                    || c.stt.provider == "groq"
-                                    || c.stt.provider == "openai";
-                                (c.overlay, cloud)
-                            })
-                            .unwrap_or((true, false));
-                        let _ = evt_handle.emit_to(
-                            "overlay",
-                            "murmur:engine",
-                            if cloud { "cloud" } else { "local" },
-                        );
+                            .map(|st| st.config.lock().unwrap().overlay)
+                            .unwrap_or(true);
                         let want = matches!(s.as_str(), "recording" | "transcribing") && overlay_on;
                         let _ = if want { w.show() } else { w.hide() };
                     }
@@ -252,6 +251,12 @@ fn main() {
                 SidecarEvent::LastRaw(t) => *raw_c.lock().unwrap() = t,
                 SidecarEvent::Corrections(v) => *corr_c.lock().unwrap() = v,
                 SidecarEvent::Preview(t) => *prev_c.lock().unwrap() = t,
+                SidecarEvent::Engine(v) => {
+                    *eng_c.lock().unwrap() = v.clone();
+                    if evt_handle.get_webview_window("overlay").is_some() {
+                        let _ = evt_handle.emit_to("overlay", "murmur:engine", v);
+                    }
+                }
                 SidecarEvent::Transcript(_) => {}
             });
 
@@ -262,6 +267,7 @@ fn main() {
                 corrections,
                 last_raw,
                 preview,
+                engine,
             });
 
             // Tray icon + menu.
