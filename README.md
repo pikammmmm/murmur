@@ -67,12 +67,17 @@ hold  \  (held, not tapped)        Rust/Tauri core
   verbatim by the formatter.
 - **Voice commands** — say "new paragraph", "new line", "new bullet", or "scratch
   that" to edit as you dictate.
+- **Cancel mid-dictation** — press **Esc** while recording to discard it and type
+  nothing (with a distinct "cancelled" cue), instead of releasing and letting a
+  misspoken take type out.
 - **Quality-of-life** — audio cues, type-vs-paste insertion, local dictation
-  history + stats, run-at-login, and a tray Pause/Resume.
+  history + stats, run-at-login, and a tray Pause/Resume. Cloud users dictate the
+  instant the app is ready — the rarely-used local fallback warms in the
+  background instead of blocking startup.
 
 ## Status
 
-Built test-first. **All tests green: 145 Python + 22 Rust.** Ships as a release
+Built test-first. **All tests green: 197 Python + 28 Rust.** Ships as a release
 build: an optimized `murmur.exe` plus a frozen `murmur-sidecar.exe` (no Python
 required for end users) and an MSI installer. Runs fully offline out of the box;
 cloud STT + AI formatting light up the moment you add an API key.
@@ -105,6 +110,7 @@ enable fast cloud STT + AI cleanup.
 3. Speak, then **release** — the pill switches to *transcribing*, then the cleaned
    text is typed in.
 4. A quick **tap** of `\` still just types a `\`.
+5. Misspoke? Press **Esc** while recording to discard it — nothing is typed.
 
 > If transcripts come back empty, check your Windows **default input device** is a
 > real microphone.

@@ -98,3 +98,22 @@
   native accuracy handles the terms; the post-STT corrector still fixes
   user-taught words. (faster-whisper `hotwords` and cloud `prompt` are unaffected
   and keep biasing.)
+
+## Phase 8 — startup latency + cancel
+- **Cloud users dictate instantly at launch.** Warm-up used to load the local
+  faster-whisper fallback *synchronously* before the sidecar reported `idle` —
+  even when the primary is a cloud engine (Groq/OpenAI) with no `warm()`. So a
+  cloud user paid a full CPU model load at every launch/login before they could
+  dictate, for a model their first dictation never touches. Warm-up is now split
+  (`warmup.plan`/`run`): a local/GPU primary + the mic stay synchronous (needed
+  before idle), but a cloud primary's local fallback warms on a daemon thread
+  *after* idle — still ready if the cloud later fails, without gating readiness.
+- **Esc cancels an in-progress dictation.** Press Esc while recording to discard
+  the capture and type nothing, instead of being forced to release and let
+  garbage type (then undo). A distinct descending "cancel" cue confirms the
+  discard. The `PttState` gains a `cancel()` that latches so a still-held trigger
+  can't immediately restart, clearing on release (or via the timer self-heal if
+  that key-up is missed behind an elevated window); the hook swallows the Esc so
+  the focused app doesn't also receive it, and suppresses the stray `\` the
+  text-key release would otherwise synthesize. New sidecar `cancel` command.
+- **Tests:** 197 Python + 28 Rust green.
