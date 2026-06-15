@@ -11,7 +11,7 @@ import os
 import sys
 from pathlib import Path
 
-from murmur_sidecar import events
+from murmur_sidecar import events, warmup
 from murmur_sidecar.app import build_app, stdin_command_loop
 from murmur_sidecar.config import load_config, resolve_keys
 
@@ -65,24 +65,6 @@ def attach_file_log(cfg_path):
         pass
 
 
-def _warm(app):
-    """Warm the slow-to-initialize pieces so the first real dictation is both
-    fast AND complete:
-
-      * the STT model (GPU/local primary, else the local fallback behind a cloud
-        primary) — pays the model load + first-inference cost. Cloud
-        transcribers have no warm().
-      * the microphone — its first cold open after boot lags by seconds (lazy
-        PortAudio init + device spin-up), which would otherwise drop the leading
-        audio of the first recording and truncate that transcript. This applies
-        regardless of STT provider, so it runs unconditionally."""
-    target = app.transcriber if hasattr(app.transcriber, "warm") else app.fallback
-    if target is not None and hasattr(target, "warm"):
-        target.warm()
-    if getattr(app, "recorder", None) is not None and hasattr(app.recorder, "warm"):
-        app.recorder.warm()
-
-
 def main(argv=None):
     force_utf8_stdio()
     setup_logging()
@@ -96,8 +78,11 @@ def main(argv=None):
     events.state("loading")
     log.info("config %s; stt=%s formatter=%s", cfg_path, cfg["stt"]["provider"], cfg["formatter"]["provider"])
     app = build_app(cfg, keys, corrections_path=corrections_path)
+    # Warm synchronous targets (a local/GPU primary + the mic) before going idle;
+    # a cloud primary's local fallback warms in the background so cloud users can
+    # dictate the instant the app is ready instead of waiting on a CPU model load.
     try:
-        _warm(app)
+        warmup.run(app)
     except Exception as exc:
         log.warning("warmup failed: %s", exc)
     events.state("idle")
