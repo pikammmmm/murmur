@@ -29,6 +29,7 @@ Write-Host '== Freezing Python sidecar ==' -ForegroundColor Cyan
     --specpath (Join-Path $sidecar 'build_pyi') `
     --collect-all faster_whisper --collect-all ctranslate2 `
     --collect-all onnxruntime --collect-all tokenizers `
+    --hidden-import win32clipboard --hidden-import win32con `
     --exclude-module torch --exclude-module torchvision `
     --exclude-module torch_directml --exclude-module whisper `
     (Join-Path $sidecar 'main.py')
