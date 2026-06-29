@@ -117,3 +117,14 @@
   the focused app doesn't also receive it, and suppresses the stray `\` the
   text-key release would otherwise synthesize. New sidecar `cancel` command.
 - **Tests:** 197 Python + 28 Rust green.
+
+## Phase 9 — paste-injection fix (v0.1.3)
+- **Clipboard-paste dictations are no longer silently dropped.** `injector.py`
+  imports `win32clipboard` / `win32con` lazily inside `_get_clipboard` /
+  `_set_clipboard`, so PyInstaller's static analysis never saw them and the
+  frozen `murmur-sidecar.exe` shipped without them. With `inject_mode: "paste"`
+  (clipboard + Ctrl+V) the import raised `ModuleNotFoundError` at runtime, so the
+  transcribed text never reached the target window and the dictation vanished
+  with no visible error. `build.ps1` now passes
+  `--hidden-import win32clipboard --hidden-import win32con` so the onefile
+  bundles them. (The default `type` mode was unaffected.)
