@@ -30,3 +30,6 @@ Thumbs.db
 .DS_Store
 .idea/
 .vscode/
+
+# stray local capture/debug artifacts
+_desktop_idle.png
