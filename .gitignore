@@ -1,6 +1,15 @@
 # secrets & local runtime state — never commit
 config.json
+config.json.bak*
+*.bak
 *.log
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+secrets.*
+credentials.*
 
 # python sidecar
 __pycache__/
