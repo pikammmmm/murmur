@@ -118,6 +118,14 @@
   text-key release would otherwise synthesize. New sidecar `cancel` command.
 - **Tests:** 197 Python + 28 Rust green.
 
+## v0.1.4 — paste is the default insertion
+- **Default injection is now all-at-once clipboard paste (was per-char type);
+  fresh installs get instant, punctuation-safe insertion.** The old `type` default
+  inserted word-by-word and dropped punctuation, which drove a long accuracy saga;
+  `paste` writes the whole transcription at once via clipboard + Ctrl+V. (Win+V
+  clipboard-history keeps each dictation — a known minor tradeoff of paste mode.)
+  Existing configs are untouched; this only changes the brand-new-install default.
+
 ## Phase 9 — paste-injection fix (v0.1.3)
 - **Clipboard-paste dictations are no longer silently dropped.** `injector.py`
   imports `win32clipboard` / `win32con` lazily inside `_get_clipboard` /
