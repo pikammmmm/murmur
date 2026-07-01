@@ -35,7 +35,7 @@ DEFAULTS = {
     "max_recording_seconds": 60,
     "voice_commands": True,        # spoken "new paragraph"/"scratch that"/etc.
     "audio_cues": True,            # beep on record start/stop/error
-    "inject_mode": "type",         # type | paste (clipboard + Ctrl+V)
+    "inject_mode": "paste",        # paste (clipboard + Ctrl+V, all-at-once) | type (per-char)
     "inject_char_delay_ms": 6,     # type-mode per-key pacing; stops dropped chars/spaces (0 = unpaced)
     "save_history": True,          # keep a local dictation history + stats
     "overlay": True,               # floating recording-indicator blob (Rust-side)

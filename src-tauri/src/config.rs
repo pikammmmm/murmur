@@ -35,7 +35,7 @@ fn d_fmt_model() -> String { "claude-haiku-4-5-20251001".into() }
 fn d_fmt_mode() -> String { "grammar".into() }
 fn d_max_tokens() -> u32 { 1024 }
 fn d_max_rec() -> u32 { 60 }
-fn d_inject_mode() -> String { "type".into() }
+fn d_inject_mode() -> String { "paste".into() }
 fn d_profiles() -> serde_json::Value { serde_json::json!({}) }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -190,6 +190,7 @@ mod tests {
         assert_eq!(c.formatter.model, "claude-haiku-4-5-20251001");
         assert_eq!(c.hotkey.key, "backslash");
         assert_eq!(c.hotkey.hold_threshold_ms, 350);
+        assert_eq!(c.inject_mode, "paste");
     }
 
     #[test]

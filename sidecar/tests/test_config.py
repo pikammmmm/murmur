@@ -8,6 +8,7 @@ def test_defaults_used_when_no_file(tmp_path):
     assert cfg["stt"]["provider"] == "groq"
     assert cfg["formatter"]["provider"] == "anthropic"
     assert cfg["hotkey"]["hold_threshold_ms"] == 350
+    assert cfg["inject_mode"] == "paste"
 
 
 def test_file_overrides_and_backfills(tmp_path):
