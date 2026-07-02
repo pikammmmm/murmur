@@ -136,3 +136,11 @@
   with no visible error. `build.ps1` now passes
   `--hidden-import win32clipboard --hidden-import win32con` so the onefile
   bundles them. (The default `type` mode was unaffected.)
+
+## v0.1.5 — dependency refresh
+- Rebuilt on an updated toolchain and dependency stack: PyInstaller 6.21,
+  anthropic 0.115, openai 2.44, groq 1.5, faster-whisper 1.2.1,
+  ctranslate2 4.8, onnxruntime 1.27; Rust crates refreshed via `cargo update`.
+  No behavior changes intended. 197 Python tests green; frozen sidecar
+  smoke-tested (boot → idle → clean quit).
+- New `sidecar/smoke_frozen.py`: one-shot boot smoke test for the frozen exe.
