@@ -260,11 +260,20 @@ drops a release event will leave murmur recording.
 
 ## Remaining work
 
-1. **Wire the portal binder.** Implement `CreateSession` → `BindShortcuts` →
-   subscribe to `Activated`/`Deactivated`, pushing `down`/`up` into the control
-   socket. Needs a D-Bus client (`zbus`) in the shell, or a small helper.
-   Deliberately not added here: it would be a large dependency whose behaviour
-   could not be verified on this machine.
+1. ~~**Wire the portal binder.**~~ **DONE 2026-07-31** — `linux/murmur-ptt-binder.py`.
+   Implemented as a small helper rather than a `zbus` dependency in the shell,
+   so the Rust side keeps its socket seam and gains no D-Bus surface. Uses
+   python-gobject (already present on KDE); `gi` is imported lazily so the
+   control-socket half stays testable in a plain venv.
+   **Verified live against the real portal**: `CreateSession` returned a session
+   handle and `BindShortcuts` succeeded (GlobalShortcuts v2, `kde.portal`).
+   7 tests in `linux/test_ptt_binder.py` cover the wire words, the socket-path
+   contract with `hotkey/linux.rs`, and reconnect-after-shell-restart.
+   **Still unverified: an actual keypress.** The portal reported an empty
+   `trigger_description`, meaning KDE registered the shortcut but no key is
+   assigned yet — set it in System Settings → Shortcuts. Until then nothing
+   fires. Run with `./linux/murmur-ptt-binder.py`, or install
+   `linux/murmur-ptt-binder.service` as a --user unit.
 2. **Build the shell** once `webkit2gtk-4.1` is installed, then re-check
    `commands.rs`, `tray.rs` and `main.rs` — those are the only modules that
    have *not* been type-checked on Linux, because they need Tauri.
