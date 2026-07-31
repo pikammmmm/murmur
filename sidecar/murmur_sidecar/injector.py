@@ -1,32 +1,57 @@
 """Insert the final text into the focused window.
 
 Two modes:
-  * "type"  — pynput types it character by character (default; works in most apps).
+  * "type"  — types it character by character (default; works in most apps).
   * "paste" — put it on the clipboard and send Ctrl+V, restoring the previous
     clipboard afterward. More reliable in apps that drop or mangle synthetic
     keystrokes (some Electron/terminal/game UIs), and much faster for long text.
 
-All Win32/pynput bits are injectable so the logic is unit-testable.
+The OS-specific parts (which typing mechanism, which clipboard tool) come from
+the platform backend; everything here is platform-free. All of it is injectable
+so the logic is unit-testable without touching a real keyboard or clipboard.
 """
 import logging
 import time
 
+from .backends import get_backend
+
 log = logging.getLogger("murmur.injector")
 
-# Seconds between characters when typing. pynput's bulk type() fires key events
-# as fast as SendInput allows; apps drop keystrokes that arrive faster than their
-# message pump drains them — and a dropped space ("twowords") is the most visible
-# casualty. A few ms of pacing per character lets the target keep up. Small
-# enough to stay imperceptible (~0.6s for a 100-char dictation).
+# Seconds between characters when typing. Bulk typing fires key events as fast
+# as the injection API allows; apps drop keystrokes that arrive faster than
+# their message pump drains them — and a dropped space ("twowords") is the most
+# visible casualty. A few ms of pacing per character lets the target keep up.
+# Small enough to stay imperceptible (~0.6s for a 100-char dictation).
+#
+# Backends whose typing helper paces itself (xdotool/wtype take their own
+# --delay, and spawn one process per call) override this with 0 — see
+# ``resolve_char_delay``.
 DEFAULT_CHAR_DELAY = 0.006
+
+
+def resolve_char_delay(char_delay_ms=None):
+    """Seconds to wait between characters.
+
+    Explicit config wins; otherwise the backend gets to pick (a subprocess-based
+    Linux typer wants bulk, i.e. 0), and failing that we use DEFAULT_CHAR_DELAY.
+    """
+    if char_delay_ms is not None:
+        return char_delay_ms / 1000.0
+    try:
+        preferred = get_backend().default_char_delay()
+    except Exception:
+        preferred = None
+    return DEFAULT_CHAR_DELAY if preferred is None else preferred
 
 
 def type_text(text, controller=None, char_delay=DEFAULT_CHAR_DELAY, sleep=None):
     if not text:
         return
     if controller is None:
-        from pynput.keyboard import Controller
-        controller = Controller()
+        controller = get_backend().make_controller()
+        if controller is None:
+            log.warning("no text-injection backend available; dropping %d chars", len(text))
+            return
     if not char_delay:
         controller.type(text)  # unpaced (opt-out): one bulk call
         return
@@ -38,36 +63,17 @@ def type_text(text, controller=None, char_delay=DEFAULT_CHAR_DELAY, sleep=None):
 
 def _get_clipboard():
     try:
-        import win32clipboard
-        import win32con
-        win32clipboard.OpenClipboard()
-        try:
-            return win32clipboard.GetClipboardData(win32con.CF_UNICODETEXT)
-        except Exception:
-            return None
-        finally:
-            win32clipboard.CloseClipboard()
+        return get_backend().get_clipboard()
     except Exception:
         return None
 
 
 def _set_clipboard(text):
-    import win32clipboard
-    import win32con
-    win32clipboard.OpenClipboard()
-    try:
-        win32clipboard.EmptyClipboard()
-        win32clipboard.SetClipboardData(win32con.CF_UNICODETEXT, text)
-    finally:
-        win32clipboard.CloseClipboard()
+    get_backend().set_clipboard(text)
 
 
 def _ctrl_v():
-    from pynput.keyboard import Controller, Key
-    controller = Controller()
-    with controller.pressed(Key.ctrl):
-        controller.press("v")
-        controller.release("v")
+    get_backend().send_paste()
 
 
 def paste_text(text, get_clipboard=None, set_clipboard=None, do_paste=None, sleep=None):
@@ -95,10 +101,11 @@ def make_injector(mode, char_delay_ms=None):
     """Return the injector function for the configured mode.
 
     For "type" mode, ``char_delay_ms`` sets the per-character pacing (defaults to
-    DEFAULT_CHAR_DELAY when None). Pass 0 to opt out of pacing (bulk type)."""
+    the backend's preference, else DEFAULT_CHAR_DELAY). Pass 0 to opt out of
+    pacing (bulk type)."""
     if mode == "paste":
         return paste_text
-    delay = DEFAULT_CHAR_DELAY if char_delay_ms is None else char_delay_ms / 1000.0
+    delay = resolve_char_delay(char_delay_ms)
 
     def typer(text, controller=None, sleep=None):
         return type_text(text, controller=controller, char_delay=delay, sleep=sleep)

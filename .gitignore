@@ -42,3 +42,4 @@ Thumbs.db
 
 # stray local capture/debug artifacts
 _desktop_idle.png
+.venv-linux/
