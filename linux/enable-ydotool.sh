@@ -20,65 +20,86 @@
 # The tradeoff, stated plainly: this grants your user account the ability to
 # synthesize arbitrary input system-wide. Any process running as you can then
 # type into any window. That is inherent to the approach, not to this script.
+#
+# The Arch package already ships the udev rule AND the systemd user unit, so
+# this script only clears breakage and sets group membership. Idempotent.
 
 set -euo pipefail
 
 if [[ $EUID -ne 0 ]]; then echo "Run with sudo: sudo bash $0"; exit 1; fi
 REAL_USER="${SUDO_USER:-pikammmmm}"
 
-echo "=== 1. install ydotool ==="
-pacman -S --needed --noconfirm ydotool
+echo "=== 1. clear a stale pacman lock, if any ==="
+# A pacman run killed mid-transaction leaves /var/lib/pacman/db.lck behind AND
+# can leave the package half-extracted as 0-byte files. Every later pacman then
+# fails with "unable to lock database", so the breakage compounds silently.
+if [[ -e /var/lib/pacman/db.lck ]]; then
+  if pgrep -x 'pacman|paru|yay|pamac' >/dev/null 2>&1; then
+    echo "  a package manager IS running — refusing to touch the lock. Re-run later."
+    exit 1
+  fi
+  rm -f /var/lib/pacman/db.lck
+  echo "  removed stale lock"
+else
+  echo "  no lock present"
+fi
 
 echo
-echo "=== 2. uinput group + device access ==="
-getent group uinput >/dev/null || groupadd uinput
-usermod -aG uinput "$REAL_USER"
-echo "  added $REAL_USER to 'uinput'"
+echo "=== 2. (re)install ydotool ==="
+# NOT --needed: pacman's DB can claim ydotool is installed while the files on
+# disk are 0 bytes from an interrupted transaction. --needed trusts the DB and
+# skips the repair.
+#
+# --overwrite: when that interrupted transaction is rolled back with -Rdd, the
+# corrupt DB entry has no file list, so pacman leaves the real files orphaned on
+# disk. The next install then aborts with "exists in filesystem". These three
+# paths all belong to ydotool itself, so adopting them is safe — the flag is
+# scoped to this transaction, which contains only this package.
+if pacman -Q ydotool >/dev/null 2>&1 && [[ ! -s /usr/bin/ydotoold ]]; then
+  echo "  DB says installed but binary is empty — forcing a clean reinstall"
+  pacman -Rdd --noconfirm ydotool 2>/dev/null || true
+fi
+pacman -S --noconfirm \
+  --overwrite '/usr/lib/udev/rules.d/80-uinput.rules' \
+  --overwrite '/usr/share/man/man1/ydotool.1.gz' \
+  --overwrite '/usr/share/man/man8/ydotoold.8.gz' \
+  ydotool
 
-# Load at boot, and now.
-echo uinput > /etc/modules-load.d/uinput.conf
-modprobe uinput || true
+for b in /usr/bin/ydotool /usr/bin/ydotoold; do
+  [[ -s "$b" ]] || { echo "  FAILED: $b still empty after reinstall." >&2; exit 1; }
+done
+echo "  ydotool $(pacman -Q ydotool | awk '{print $2}') installed, binaries non-empty"
 
-cat > /etc/udev/rules.d/80-uinput.rules <<'EOF'
-# ydotool needs a writable /dev/uinput. Default is root:root 0600.
-KERNEL=="uinput", GROUP="uinput", MODE="0660", OPTIONS+="static_node=uinput"
-EOF
-udevadm control --reload-rules
+echo
+echo "=== 3. /dev/uinput access ==="
+# The package ships /usr/lib/udev/rules.d/80-uinput.rules, which grants group
+# `input` — NOT `uinput`. Do not create a `uinput` group and do not write a
+# competing rule into /etc/udev/rules.d: /etc wins over /usr/lib for a
+# same-named file, so a hand-rolled copy would silently override the packaged
+# one and hand the device to a group nothing else uses.
+usermod -aG input "$REAL_USER"
+echo "  $REAL_USER added to 'input'"
+
+# `|| true` on both: udevadm returns non-zero in containers and on transient
+# reload races. Under `set -e` that aborts the script here, before anything
+# below runs — which is how an earlier version of this script died silently.
+udevadm control --reload-rules || true
 udevadm trigger --name-match=uinput || true
-echo "  /dev/uinput -> $(stat -c '%a %G' /dev/uinput 2>/dev/null || echo 'not present until reboot')"
-
-echo
-echo "=== 3. ydotoold as a user service ==="
-# ydotool talks to a daemon that owns the uinput fd. Running it per-user (not
-# system-wide) keeps the socket owned by you rather than root.
-install -d -o "$REAL_USER" -g "$REAL_USER" "/home/$REAL_USER/.config/systemd/user"
-cat > "/home/$REAL_USER/.config/systemd/user/ydotoold.service" <<'EOF'
-[Unit]
-Description=ydotool daemon (uinput backend for murmur injection)
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/ydotoold
-Restart=on-failure
-RestartSec=3
-
-[Install]
-WantedBy=default.target
-EOF
-chown "$REAL_USER:$REAL_USER" "/home/$REAL_USER/.config/systemd/user/ydotoold.service"
-echo "  wrote ydotoold.service"
+echo "  /dev/uinput -> $(stat -c '%a %G' /dev/uinput 2>/dev/null || echo 'absent until reboot')"
 
 cat <<EOF
 
-=== DONE — but two steps are yours ===
+=== DONE — two steps are yours ===
 
-  1. LOG OUT AND BACK IN. Group membership is applied at login; until then
-     'id -Gn' won't list uinput and ydotool will fail with a permission error.
+  1. REBOOT (or at minimum log out and back in). Group membership is applied at
+     login, and the udev rule's static_node= only takes effect as the uinput
+     module loads. Until then 'id -nG' won't list input and ydotool fails with a
+     permission error on /dev/uinput.
 
-  2. Then start the daemon:
-         systemctl --user enable --now ydotoold
+  2. Then start the daemon — the unit is the packaged one, named 'ydotool':
+         systemctl --user enable --now ydotool
 
-  Verify it works (should type into whatever window has focus):
+  Verify (types into whatever window has focus):
          ydotool type 'hello from ydotool'
 
   murmur's Linux backend already prefers ydotool over the XTEST fallback once
