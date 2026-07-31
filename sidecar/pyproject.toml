@@ -3,4 +3,8 @@ testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
     "slow: tests that download models or hit real services (deselect with -m 'not slow')",
+    "desktop: needs a real X11/Wayland display and steals keyboard focus (run with -m desktop)",
 ]
+# Focus-stealing desktop tests are opt-in: they inject real keystrokes, so they
+# must never run as a side effect of a plain `pytest`.
+addopts = "-m 'not desktop'"

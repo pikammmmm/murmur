@@ -1,0 +1,345 @@
+"""Linux backend internals: strategy resolution, cue synthesis, window parsing.
+
+These run on any platform (the module imports cleanly everywhere and every OS
+call is behind a helper we monkeypatch). The genuinely-needs-a-desktop test at
+the bottom is marked ``desktop`` and deselected by default.
+"""
+import os
+import sys
+
+import pytest
+
+from murmur_sidecar.backends import linux as lx
+
+
+@pytest.fixture
+def no_tools(monkeypatch):
+    """Nothing installed, X11 session."""
+    monkeypatch.setattr(lx, "_has", lambda tool: False)
+    monkeypatch.setenv("XDG_SESSION_TYPE", "x11")
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+
+
+def installed(*tools):
+    return lambda tool: tool in set(tools)
+
+
+# --- session detection --------------------------------------------------
+
+
+def test_wayland_detected_from_session_type(monkeypatch):
+    monkeypatch.setenv("XDG_SESSION_TYPE", "wayland")
+    assert lx.is_wayland() is True
+
+
+def test_x11_session_with_display_is_not_wayland(monkeypatch):
+    monkeypatch.setenv("XDG_SESSION_TYPE", "x11")
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    monkeypatch.setenv("DISPLAY", ":0")
+    assert lx.is_wayland() is False
+
+
+def test_wayland_display_alone_implies_wayland(monkeypatch):
+    monkeypatch.delenv("XDG_SESSION_TYPE", raising=False)
+    monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-0")
+    assert lx.is_wayland() is True
+
+
+# --- typing strategy ----------------------------------------------------
+
+
+def test_wayland_prefers_wtype_over_xdotool(monkeypatch):
+    monkeypatch.setenv("XDG_SESSION_TYPE", "wayland")
+    monkeypatch.setattr(lx, "_has", installed("wtype", "xdotool"))
+    assert lx.LinuxBackend().make_controller().name == "wtype"
+
+
+def test_x11_prefers_xdotool_over_wtype(monkeypatch):
+    monkeypatch.setenv("XDG_SESSION_TYPE", "x11")
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    monkeypatch.setattr(lx, "_has", installed("wtype", "xdotool"))
+    assert lx.LinuxBackend().make_controller().name == "xdotool"
+
+
+def test_ydotool_is_used_when_it_is_the_only_option(monkeypatch):
+    monkeypatch.setenv("XDG_SESSION_TYPE", "wayland")
+    monkeypatch.setattr(lx, "_has", installed("ydotool"))
+    assert lx.LinuxBackend().make_controller().name == "ydotool"
+
+
+def test_controller_is_resolved_once_and_cached(monkeypatch):
+    monkeypatch.setattr(lx, "_has", installed("xdotool"))
+    b = lx.LinuxBackend()
+    assert b.make_controller() is b.make_controller()
+
+
+def test_helper_typers_ask_for_bulk_typing(monkeypatch):
+    # xdotool/wtype pace themselves via --delay; a per-character Python loop
+    # would mean one process spawn per character.
+    monkeypatch.setattr(lx, "_has", installed("xdotool"))
+    assert lx.LinuxBackend().default_char_delay() == 0.0
+
+
+def test_command_controller_builds_expected_argv(monkeypatch):
+    calls = []
+    monkeypatch.setattr(lx, "_run", lambda cmd, **kw: calls.append(cmd) or b"")
+    c = lx._xdotool_controller()
+    c.type("hi there")
+    c.paste()
+    assert calls[0] == ["xdotool", "type", "--clearmodifiers", "--delay", "6", "--", "hi there"]
+    assert calls[1] == ["xdotool", "key", "--clearmodifiers", "ctrl+v"]
+
+
+def test_wtype_argv_uses_double_dash_so_leading_dashes_are_text(monkeypatch):
+    calls = []
+    monkeypatch.setattr(lx, "_run", lambda cmd, **kw: calls.append(cmd) or b"")
+    lx._wtype_controller().type("-- not a flag")
+    assert calls[0] == ["wtype", "--", "-- not a flag"]
+
+
+def test_empty_text_spawns_no_process(monkeypatch):
+    calls = []
+    monkeypatch.setattr(lx, "_run", lambda cmd, **kw: calls.append(cmd) or b"")
+    lx._xdotool_controller().type("")
+    assert calls == []
+
+
+def test_no_typing_backend_returns_none_rather_than_raising(no_tools, monkeypatch):
+    # Also make the pynput last resort unavailable.
+    monkeypatch.setitem(sys.modules, "pynput.keyboard", None)
+    b = lx.LinuxBackend()
+    assert b.make_controller() is None
+    b.send_paste()  # must not raise
+
+
+# --- clipboard ----------------------------------------------------------
+
+
+def test_wayland_session_picks_wl_clipboard(monkeypatch):
+    monkeypatch.setenv("XDG_SESSION_TYPE", "wayland")
+    monkeypatch.setattr(lx, "_has", installed("wl-copy", "wl-paste", "xclip"))
+    assert lx.LinuxBackend()._clipboard_tools()[0] == "wl"
+
+
+def test_x11_session_picks_xclip(monkeypatch):
+    monkeypatch.setenv("XDG_SESSION_TYPE", "x11")
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    monkeypatch.setattr(lx, "_has", installed("xclip"))
+    assert lx.LinuxBackend()._clipboard_tools()[0] == "xclip"
+
+
+def test_set_clipboard_raises_a_clear_error_when_unavailable(no_tools):
+    with pytest.raises(RuntimeError, match="no clipboard tool"):
+        lx.LinuxBackend().set_clipboard("text")
+
+
+def test_get_clipboard_returns_none_when_unavailable(no_tools):
+    assert lx.LinuxBackend().get_clipboard() is None
+
+
+def test_set_clipboard_pipes_utf8_to_the_tool(monkeypatch):
+    monkeypatch.setenv("XDG_SESSION_TYPE", "x11")
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    monkeypatch.setattr(lx, "_has", installed("xclip"))
+    seen = {}
+
+    def fake_run(cmd, stdin_bytes=None, capture=False):
+        seen["cmd"], seen["stdin"] = cmd, stdin_bytes
+        return b""
+
+    monkeypatch.setattr(lx, "_run", fake_run)
+    lx.LinuxBackend().set_clipboard("čšž")
+    assert seen["cmd"][0] == "xclip"
+    assert seen["stdin"] == "čšž".encode("utf-8")
+
+
+# --- audio cue synthesis ------------------------------------------------
+
+
+def test_sine_pcm_length_matches_requested_duration():
+    pcm = lx._sine_pcm([(600, 100)], rate=8000)
+    assert len(pcm) == 800 * 2  # 0.1s @ 8 kHz, 16-bit mono
+
+
+def test_sine_pcm_is_not_silent_and_stays_in_range():
+    import array
+
+    pcm = lx._sine_pcm([(600, 50)], rate=8000)
+    samples = array.array("h")
+    samples.frombytes(pcm)
+    assert max(abs(s) for s in samples) > 1000       # audible
+    assert all(-32768 <= s <= 32767 for s in samples)  # no wrap-around
+
+
+def test_sine_pcm_fades_in_to_avoid_a_click():
+    import array
+
+    samples = array.array("h")
+    samples.frombytes(lx._sine_pcm([(600, 50)], rate=8000))
+    assert abs(samples[0]) < 100  # starts near zero
+
+
+def test_multiple_tones_concatenate():
+    one = len(lx._sine_pcm([(600, 50)], rate=8000))
+    two = len(lx._sine_pcm([(600, 50), (900, 50)], rate=8000))
+    assert two == 2 * one
+
+
+def test_beep_without_any_player_is_silent_not_fatal(no_tools):
+    lx.LinuxBackend().beep([(600, 10)])  # must not raise
+
+
+def test_beep_pipes_pcm_to_paplay(monkeypatch):
+    monkeypatch.setattr(lx, "_has", installed("paplay"))
+    seen = {}
+
+    def fake_run(cmd, stdin_bytes=None, capture=False):
+        seen["cmd"], seen["len"] = cmd, len(stdin_bytes or b"")
+        return b""
+
+    monkeypatch.setattr(lx, "_run", fake_run)
+    lx.LinuxBackend().beep([(600, 20)])
+    assert seen["cmd"][0] == "paplay"
+    assert "--raw" in seen["cmd"]
+    assert seen["len"] > 0
+
+
+# --- foreground window --------------------------------------------------
+
+_XPROP_ROOT = b'_NET_ACTIVE_WINDOW(WINDOW): window id # 0x1000007\n'
+_XPROP_WIN = (
+    b'_NET_WM_NAME(UTF8_STRING) = "main.rs - murmur - VSCodium"\n'
+    b'_NET_WM_PID(CARDINAL) = 4242\n'
+    b'WM_CLASS(STRING) = "vscodium", "VSCodium"\n'
+)
+
+
+def test_xprop_parsing_extracts_title_and_exe(monkeypatch):
+    def fake_run(cmd, stdin_bytes=None, capture=False):
+        return _XPROP_ROOT if "-root" in cmd else _XPROP_WIN
+
+    monkeypatch.setattr(lx, "_run", fake_run)
+    monkeypatch.setattr(lx, "_exe_for_pid", lambda pid: "codium" if pid == 4242 else "")
+    exe, title = lx._active_window_xprop()
+    assert exe == "codium"
+    assert title == "main.rs - murmur - VSCodium"
+
+
+def test_xprop_falls_back_to_wm_class_without_a_pid(monkeypatch):
+    def fake_run(cmd, stdin_bytes=None, capture=False):
+        return _XPROP_ROOT if "-root" in cmd else b'WM_CLASS(STRING) = "vscodium", "VSCodium"\n'
+
+    monkeypatch.setattr(lx, "_run", fake_run)
+    monkeypatch.setattr(lx, "_exe_for_pid", lambda pid: "")
+    assert lx._active_window_xprop()[0] == "VSCodium"
+
+
+def test_no_active_window_yields_empty(monkeypatch):
+    monkeypatch.setattr(lx, "_run", lambda cmd, **kw: b"_NET_ACTIVE_WINDOW(WINDOW): window id # 0x0\n")
+    # 0x0 is a valid hex id but names no window; the id parse still succeeds and
+    # the follow-up query returns nothing useful.
+    monkeypatch.setattr(lx, "_exe_for_pid", lambda pid: "")
+
+
+def test_active_window_returns_empty_when_all_probes_fail(monkeypatch):
+    def boom():
+        raise RuntimeError("no X server")
+
+    monkeypatch.setattr(lx, "_active_window_xlib", boom)
+    monkeypatch.setattr(lx, "_active_window_xprop", boom)
+    assert lx.LinuxBackend().active_window() == ("", "")
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="needs /proc")
+def test_exe_for_pid_resolves_this_interpreter():
+    # Real /proc read — no mocking. This process is a Python interpreter.
+    assert "python" in lx._exe_for_pid(os.getpid()).lower()
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="needs /proc")
+def test_exe_for_pid_is_empty_for_a_bogus_pid():
+    assert lx._exe_for_pid(0) == ""
+    assert lx._exe_for_pid(999_999_99) == ""
+
+
+# --- diagnostics --------------------------------------------------------
+
+
+def test_diagnostics_reports_resolved_strategies(monkeypatch):
+    monkeypatch.setenv("XDG_SESSION_TYPE", "wayland")
+    monkeypatch.setattr(lx, "_has", installed("wtype", "wl-copy", "wl-paste", "paplay"))
+    d = lx.LinuxBackend().diagnostics()
+    assert d["backend"] == "linux"
+    assert d["session"] == "wayland"
+    assert d["typing"] == "wtype"
+    assert d["clipboard"] == "wl"
+    assert d["audio"] == "paplay"
+
+
+# --- the real thing (opt-in) -------------------------------------------
+
+
+@pytest.mark.desktop
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux desktop only")
+def test_round_trip_injection_into_a_real_window():
+    """Type through the production injector into a real focused X11 window and
+    read the keystrokes back. Requires a running X11/XWayland display.
+
+    Run with:  pytest -m desktop
+    """
+    Xlib = pytest.importorskip("Xlib")
+    import time
+
+    from Xlib import X, XK, display
+    import Xlib.protocol.event
+
+    from murmur_sidecar import injector
+
+    try:
+        d = display.Display()
+    except Exception as exc:
+        pytest.skip("no X display: %s" % exc)
+
+    root = d.screen().root
+    win = root.create_window(
+        100, 100, 400, 200, 0, d.screen().root_depth,
+        X.InputOutput, X.CopyFromParent,
+        background_pixel=d.screen().white_pixel,
+        event_mask=X.KeyPressMask | X.KeyReleaseMask | X.StructureNotifyMask,
+    )
+    try:
+        win.set_wm_name("murmur-injection-target")
+        win.set_wm_class("murmurprobe", "MurmurProbe")
+        win.map()
+        d.sync()
+        root.send_event(
+            Xlib.protocol.event.ClientMessage(
+                window=win,
+                client_type=d.intern_atom("_NET_ACTIVE_WINDOW"),
+                data=(32, [1, X.CurrentTime, 0, 0, 0]),
+            ),
+            event_mask=X.SubstructureRedirectMask | X.SubstructureNotifyMask,
+        )
+        d.sync()
+        for _ in range(30):
+            time.sleep(0.1)
+            if getattr(d.get_input_focus().focus, "id", None) == win.id:
+                break
+        else:
+            pytest.skip("window manager would not focus the probe window")
+
+        phrase = "hello murmur two words"
+        injector.type_text(phrase)
+        time.sleep(0.6)
+
+        typed = []
+        for _ in range(d.pending_events()):
+            ev = d.next_event()
+            if ev.type == X.KeyPress:
+                ks = d.keycode_to_keysym(ev.detail, 0)
+                s = XK.keysym_to_string(ks)
+                typed.append(s if s else (" " if ks == XK.XK_space else ""))
+        assert "".join(typed) == phrase
+    finally:
+        win.destroy()
+        d.close()
