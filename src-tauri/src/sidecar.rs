@@ -5,11 +5,13 @@
 //! supervise-and-restart shape glassbar used for the old voice child. Commands
 //! (`start`/`stop`/`reload`/`quit`) are written to the child's stdin.
 use std::io::{BufRead, BufReader, Write};
+#[cfg(windows)]
 use std::os::windows::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
+#[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -70,14 +72,17 @@ pub struct Supervisor {
 }
 
 fn spawn_child(launch: &Launch) -> std::io::Result<Child> {
-    Command::new(&launch.program)
-        .args(&launch.args)
+    let mut cmd = Command::new(&launch.program);
+    cmd.args(&launch.args)
         .env("MURMUR_CONFIG", &launch.config_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .creation_flags(CREATE_NO_WINDOW)
-        .spawn()
+        .stderr(Stdio::null());
+    // Windows would otherwise flash a console window for the Python child.
+    // On Linux there is no such window, so there is nothing to suppress.
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd.spawn()
 }
 
 impl Supervisor {

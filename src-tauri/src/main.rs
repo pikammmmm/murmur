@@ -1,4 +1,4 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![cfg_attr(all(not(debug_assertions), windows), windows_subsystem = "windows")]
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -36,8 +36,11 @@ pub struct AppState {
     pub engine: Arc<Mutex<String>>,
 }
 
-/// One running instance only — a named kernel mutex survives across processes
-/// (autostart + manual relaunch + cargo runs would otherwise pile up).
+/// One running instance only — autostart + manual relaunch + cargo runs would
+/// otherwise pile up. Returns false when another instance already holds the lock.
+///
+/// Windows uses a named kernel mutex, which the OS releases on process exit.
+#[cfg(windows)]
 fn singleton_ok() -> bool {
     use windows::core::PCWSTR;
     use windows::Win32::Foundation::{GetLastError, ERROR_ALREADY_EXISTS};
@@ -57,6 +60,36 @@ fn singleton_ok() -> bool {
     }
 }
 
+/// Linux has no named-mutex equivalent, so use a PID file in the runtime dir
+/// (`$XDG_RUNTIME_DIR`, which is tmpfs and cleared on logout). Because a killed
+/// process leaves the file behind, a stale PID is not enough to refuse start —
+/// we confirm the recorded process is genuinely still alive via `/proc/<pid>`
+/// before treating it as a live instance, and otherwise take the lock over.
+#[cfg(not(windows))]
+fn singleton_ok() -> bool {
+    use std::path::PathBuf;
+    let dir = std::env::var_os("XDG_RUNTIME_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
+    let lock = dir.join("murmur-singleton-9f2a.pid");
+
+    if let Ok(text) = std::fs::read_to_string(&lock) {
+        if let Ok(pid) = text.trim().parse::<u32>() {
+            // Alive AND actually murmur — a recycled PID must not lock us out.
+            let is_murmur = std::fs::read_to_string(format!("/proc/{pid}/comm"))
+                .map(|c| c.trim() == "murmur")
+                .unwrap_or(false);
+            if is_murmur && pid != std::process::id() {
+                return false;
+            }
+        }
+    }
+    // Stale, absent, or unparseable — claim it. Failure to write is not fatal:
+    // being unable to record the lock should not block the app from starting.
+    let _ = std::fs::write(&lock, std::process::id().to_string());
+    true
+}
+
 /// Where the Python sidecar lives. Normally prefer a frozen `murmur-sidecar.exe`
 /// shipped next to the app, falling back (dev) to the project venv running
 /// `main.py`. EXCEPTION: the "gpu" provider needs torch-directml, which is only
@@ -64,9 +97,17 @@ fn singleton_ok() -> bool {
 /// prefer the venv even if a frozen CPU sidecar sits next to us (the bundler
 /// re-copies that frozen exe on every build, so we can't rely on its absence).
 fn resolve_launch(config_path: &PathBuf) -> Launch {
-    let home = std::env::var("USERPROFILE").unwrap_or_default();
-    let venv_py = PathBuf::from(&home).join("murmur").join("sidecar").join(".venv").join("Scripts").join("python.exe");
-    let main_py = PathBuf::from(&home).join("murmur").join("sidecar").join("main.py");
+    // Windows venvs put the interpreter in `Scripts\python.exe`; POSIX venvs use
+    // `bin/python`. Home comes from USERPROFILE on Windows, HOME elsewhere.
+    #[cfg(windows)]
+    let (home_var, bin_dir, py_exe) = ("USERPROFILE", "Scripts", "python.exe");
+    #[cfg(not(windows))]
+    let (home_var, bin_dir, py_exe) = ("HOME", "bin", "python");
+
+    let home = std::env::var(home_var).unwrap_or_default();
+    let sidecar_dir = PathBuf::from(&home).join("murmur").join("sidecar");
+    let venv_py = sidecar_dir.join(".venv").join(bin_dir).join(py_exe);
+    let main_py = sidecar_dir.join("main.py");
     let venv_launch = || Launch {
         program: venv_py.clone(),
         args: vec![main_py.to_string_lossy().to_string()],
@@ -80,8 +121,13 @@ fn resolve_launch(config_path: &PathBuf) -> Launch {
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
             // Bundled installs place the frozen sidecar next to the exe; some
-            // bundlers nest resources under `resources/`. Check both.
-            for frozen in [dir.join("murmur-sidecar.exe"), dir.join("resources").join("murmur-sidecar.exe")] {
+            // bundlers nest resources under `resources/`. Check both. The frozen
+            // binary has no extension on Linux.
+            #[cfg(windows)]
+            let frozen_name = "murmur-sidecar.exe";
+            #[cfg(not(windows))]
+            let frozen_name = "murmur-sidecar";
+            for frozen in [dir.join(frozen_name), dir.join("resources").join(frozen_name)] {
                 if frozen.exists() {
                     mlog!("sidecar launch: frozen {}", frozen.display());
                     return Launch { program: frozen, args: vec![], config_path: config_path.clone() };

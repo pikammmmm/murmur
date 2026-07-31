@@ -4,19 +4,40 @@ version = "0.1.5"
 edition = "2021"
 default-run = "murmur"
 
+# The platform-independent core (config, PTT state machine, sidecar protocol,
+# hotkey plumbing, autostart) is also exposed as a library target. That lets it
+# be type-checked and unit-tested with `--no-default-features`, i.e. without
+# pulling in Tauri — which on Linux needs a webkit2gtk development package that
+# a non-root user cannot install. The bin target is the full shell.
+[lib]
+name = "murmur"
+path = "src/lib.rs"
+
 [[bin]]
 name = "murmur"
 path = "src/main.rs"
+required-features = ["shell"]
+
+[features]
+default = ["shell"]
+# The Tauri shell: webview windows, tray icon, IPC commands.
+shell = ["dep:tauri"]
 
 [build-dependencies]
 tauri-build = { version = "2.0", features = [] }
 
 [dependencies]
-tauri = { version = "2.0", features = ["tray-icon"] }
+tauri = { version = "2.0", features = ["tray-icon"], optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
 directories = "5"
+
+# Win32 surface: the WH_KEYBOARD_LL hotkey hook, the singleton mutex, and the
+# HKCU\...\Run autostart key. Unconditional deps here made `cargo build` fail at
+# resolution on Linux before it ever reached our code, so they are target-gated.
+# The Linux equivalents (XDG autostart, PID lockfile) need no extra crates.
+[target.'cfg(windows)'.dependencies]
 winreg = "0.52"
 windows = { version = "0.58", features = [
   "Win32_Foundation",
