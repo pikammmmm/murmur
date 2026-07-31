@@ -49,7 +49,16 @@ REQUEST_IFACE = "org.freedesktop.portal.Request"
 SHORTCUT_ID = "push-to-talk"
 # Portal syntax is XDG shortcuts spec, not Qt: modifiers are CAPS, joined by '+'.
 # The user can always re-bind in the system dialog; this is only the suggestion.
-DEFAULT_TRIGGER = os.environ.get("MURMUR_PTT_TRIGGER", "CTRL+ALT+SPACE")
+#
+# Default is bare backslash, matching the Windows build. READ THIS BEFORE
+# CHANGING IT: a global shortcut on a printable key *grabs* that key, so while
+# this binding is active `\` stops typing anywhere on the desktop. Windows could
+# have it both ways because its hook suppresses the keystroke and synthesizes a
+# real `\` on a short tap; the portal exposes no equivalent, so tap-to-type
+# cannot be reproduced here. If you need to type backslashes, either set
+# MURMUR_PTT_TRIGGER to a modifier combo, or use the evdev backend
+# (see LINUX-PORT-NOTES.md), which observes the key without consuming it.
+DEFAULT_TRIGGER = os.environ.get("MURMUR_PTT_TRIGGER", "backslash")
 
 log = logging.getLogger("murmur-ptt-binder")
 

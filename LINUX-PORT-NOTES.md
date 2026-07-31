@@ -274,6 +274,25 @@ drops a release event will leave murmur recording.
    assigned yet — set it in System Settings → Shortcuts. Until then nothing
    fires. Run with `./linux/murmur-ptt-binder.py`, or install
    `linux/murmur-ptt-binder.service` as a --user unit.
+
+   **Trigger is bare backslash by default, matching Windows — with one caveat that
+   cannot be engineered away.** A global shortcut on a printable key *grabs* it, so
+   while the binder is running `\` stops typing anywhere on the desktop. The Windows
+   build had it both ways because `WH_KEYBOARD_LL` can suppress the keystroke and
+   synthesize a real `\` on a short tap; `org.freedesktop.portal.GlobalShortcuts`
+   exposes no suppress-and-resynthesize primitive, so **tap-to-type cannot be
+   reproduced through the portal.** Three options:
+
+   - Accept it — `\` becomes a dedicated PTT key.
+   - `MURMUR_PTT_TRIGGER='CTRL+ALT+SPACE'` (or any modifier combo) — nothing is grabbed
+     that you'd otherwise type.
+   - **evdev backend (not implemented).** Reading `/dev/input/event*` observes the key
+     *without* consuming it, so `\` keeps typing and hold-to-talk still works — at the
+     cost of a stray `\` landing in the field on each hold, which the injector would
+     need to backspace before typing the transcript. Requires one-time
+     `sudo usermod -aG input $USER` + re-login. True Windows-style suppression would
+     additionally need `EVIOCGRAB` + `/dev/uinput` re-emission, which makes the binder
+     a single point of failure for the whole keyboard — not recommended.
 2. **Build the shell** once `webkit2gtk-4.1` is installed, then re-check
    `commands.rs`, `tray.rs` and `main.rs` — those are the only modules that
    have *not* been type-checked on Linux, because they need Tauri.
