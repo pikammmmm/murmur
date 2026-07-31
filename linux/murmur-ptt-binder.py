@@ -58,7 +58,12 @@ SHORTCUT_ID = "push-to-talk"
 #
 # Super rather than Ctrl because Ctrl+\ sends SIGQUIT in a terminal. Override with
 # MURMUR_PTT_TRIGGER, e.g. 'CTRL+ALT+SPACE'.
-DEFAULT_TRIGGER = os.environ.get("MURMUR_PTT_TRIGGER", "SUPER+backslash")
+#
+# The Super/Meta modifier is spelled LOGO here, NOT SUPER — that is the XDG
+# shortcuts spec token. KDE does not reject an unparseable trigger: BindShortcuts
+# still returns success, just with an empty trigger_description, and the shortcut
+# lands in kglobalshortcutsrc bound to `none`. It looks bound and never fires.
+DEFAULT_TRIGGER = os.environ.get("MURMUR_PTT_TRIGGER", "LOGO+backslash")
 
 log = logging.getLogger("murmur-ptt-binder")
 

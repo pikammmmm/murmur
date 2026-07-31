@@ -1,0 +1,22 @@
+[Unit]
+Description=murmur push-to-talk binder (XDG GlobalShortcuts portal)
+Documentation=file:///home/pikammmmm/murmur/linux/murmur-ptt-binder.py
+# The portal lives on the session bus and needs a running compositor, so this
+# cannot start before the graphical session exists. PartOf= tears it down again
+# on logout rather than leaving a binder attached to a dead session.
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+# Shortcuts registered through the GlobalShortcuts portal live only as long as
+# the process holding the portal session does. If this exits, the shortcut is
+# deregistered and the key silently stops working — so it has to stay resident,
+# and Restart=always is load-bearing, not boilerplate.
+ExecStart=/usr/bin/python3 -u /home/pikammmmm/murmur/linux/murmur-ptt-binder.py
+Restart=always
+RestartSec=3
+Slice=app.slice
+
+[Install]
+WantedBy=graphical-session.target

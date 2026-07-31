@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=murmur — push to talk
+Comment=Holds a global shortcut and drives murmur's dictation socket
+Exec=/usr/bin/python3 /home/pikammmmm/murmur/linux/murmur-ptt-binder.py
+Icon=audio-input-microphone
+Terminal=false
+# Not something to launch from the menu — it exists so the GlobalShortcuts
+# portal has a stable application identity to file the shortcut under. Without
+# a desktop entry KDE attributes the shortcut to whatever launched the process
+# (a terminal, typically) and it lands in that app's section of
+# kglobalshortcutsrc instead of its own.
+NoDisplay=true
+Categories=Utility;
