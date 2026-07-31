@@ -19,12 +19,22 @@ log = logging.getLogger("murmur.main")
 
 
 def default_config_path():
+    """Where config.json lives when the shell doesn't pass one.
+
+    Windows uses %APPDATA%\\murmur\\murmur\\data (what the Rust shell's
+    `directories` crate produces); Linux follows the XDG basedir spec so the
+    config lands in ~/.config/murmur alongside everything else.
+    """
     override = os.environ.get("MURMUR_CONFIG")
     if override:
         return Path(override)
     appdata = os.environ.get("APPDATA")
-    if appdata:
+    if appdata and sys.platform.startswith("win"):
         return Path(appdata) / "murmur" / "murmur" / "data" / "config.json"
+    if sys.platform.startswith("linux"):
+        xdg = os.environ.get("XDG_CONFIG_HOME")
+        base = Path(xdg) if xdg else Path.home() / ".config"
+        return base / "murmur" / "config.json"
     return Path.home() / ".murmur" / "config.json"
 
 

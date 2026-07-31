@@ -5,9 +5,15 @@ groq>=1.0
 openai>=2.0
 anthropic>=0.115
 pynput>=1.8
-pywin32>=310
+# Windows-only: the win32 backend's clipboard + foreground-window APIs. No Linux
+# distribution exists, so it must stay markered or `pip install -r` fails outright
+# on Linux. The linux backend shells out to wtype/xdotool/wl-copy instead.
+pywin32>=310; sys_platform == "win32"
 psutil>=7.0
 metaphone>=0.6
 rapidfuzz>=3.0
 jellyfish>=1.0
 pytest>=9.0
+# Linux-only: foreground-window detection over EWMH in the linux backend.
+# pynput also pulls this in on Linux, but the backend imports Xlib directly.
+python-xlib>=0.33; sys_platform == "linux"
