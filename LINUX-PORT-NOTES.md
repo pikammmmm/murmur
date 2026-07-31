@@ -377,3 +377,34 @@ input system-wide.
 Windows dual-function-key heuristic ("another key was pressed, so the `\` was
 capitalization"), and the portal never delivers other-key events. Harmless; cfg-gate it if
 the warning is noise.
+
+
+## It runs (2026-07-31)
+
+**The app boots and the full PTT pipeline executes.** Verified by launching the release
+binary and driving the control socket directly:
+
+```
+sidecar launch: dev venv .../sidecar/.venv/bin/python
+sidecar state: loading -> idle          model loaded
+overlay window created
+hotkey: listening on /run/user/1000/murmur-ptt.sock
+sidecar state: recording                <- "down" written to the socket
+sidecar state: transcribing             <- "up" 2s later
+sidecar state: idle
+```
+
+So the socket protocol, the Rust PTT state machine, the supervisor, the recorder and the
+transcription path all work. The only untested links are a real keypress reaching the
+binder (needs the shortcut assigned in System Settings) and actual speech (needs a mic).
+**The socket doubles as a test harness** — `printf 'down\n'` / `'up\n'` into
+`$XDG_RUNTIME_DIR/murmur-ptt.sock` exercises the whole chain without a keyboard.
+
+**Crash fixed: the overlay aborted the process at startup.** `setup_overlay()` built the
+window with `.visible(false)` and immediately called `set_ignore_cursor_events(true)`. On
+Windows an HWND exists from creation; on GTK the GdkWindow only exists after *realize*, and
+tao's `WindowRequest::CursorIgnoreEvents` does `window.window().unwrap()` — so every launch
+died with `called Option::unwrap() on a None value` at
+`tao-0.35.3/.../linux/event_loop.rs:457`, before any murmur code ran. Not a Wayland issue:
+it reproduced identically under `GDK_BACKEND=x11`. Click-through now applies in
+`show_overlay()`, after `show()`, on non-Windows; the Windows path is unchanged.

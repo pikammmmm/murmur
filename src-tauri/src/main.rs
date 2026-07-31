@@ -142,6 +142,17 @@ fn resolve_launch(config_path: &PathBuf) -> Launch {
 const OVERLAY_W: f64 = 300.0;
 const OVERLAY_H: f64 = 120.0;
 
+/// Show the overlay, applying click-through once it is realized.
+///
+/// On GTK the input shape can only be set after the widget has a GdkWindow, so
+/// this must run *after* `show()`, not at build time. Re-applying on every show
+/// is a cheap idempotent input-shape call and keeps the two show sites honest.
+fn show_overlay(w: &tauri::WebviewWindow) {
+    let _ = w.show();
+    #[cfg(not(windows))]
+    let _ = w.set_ignore_cursor_events(true);
+}
+
 /// Create the hidden recording-indicator overlay: borderless, transparent,
 /// always-on-top, click-through, bottom-center. Non-fatal on failure.
 fn setup_overlay(app: &AppHandle) {
@@ -163,6 +174,12 @@ fn setup_overlay(app: &AppHandle) {
             return;
         }
     };
+    // Windows has an HWND the moment the window is created, so click-through can
+    // be set here. GTK creates the underlying GdkWindow only on *realize*, which
+    // a `.visible(false)` window has not done — and tao's CursorIgnoreEvents
+    // handler does `window.window().unwrap()`, so calling this now aborts the
+    // process on Linux. Deferred to `show_overlay()` instead.
+    #[cfg(windows)]
     let _ = overlay.set_ignore_cursor_events(true); // clicks pass through
     if let Ok(Some(monitor)) = app.primary_monitor() {
         let scale = monitor.scale_factor();
@@ -183,7 +200,7 @@ fn preview_overlay(app: &AppHandle) {
     let app = app.clone();
     std::thread::spawn(move || {
         let Some(w) = app.get_webview_window("overlay") else { return };
-        let _ = w.show();
+        show_overlay(&w);
         // Show the preview in the last-known engine tint (orange cloud / white local).
         let eng = app
             .try_state::<AppState>()
@@ -290,7 +307,7 @@ fn main() {
                             .map(|st| st.config.lock().unwrap().overlay)
                             .unwrap_or(true);
                         let want = matches!(s.as_str(), "recording" | "transcribing") && overlay_on;
-                        let _ = if want { w.show() } else { w.hide() };
+                        if want { show_overlay(&w) } else { let _ = w.hide(); }
                     }
                 }
                 SidecarEvent::Error(m) => mlog!("sidecar error: {m}"),
