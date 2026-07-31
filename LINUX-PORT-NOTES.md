@@ -335,3 +335,45 @@ error: failed to run custom build command for `javascriptcore-rs-sys v1.1.1`
 
 The two skips are `torch_directml` (Windows-only GPU path) and the local-STT
 end-to-end test (no TTS engine to synthesize its fixture).
+
+
+---
+
+## Build + injection findings (2026-07-31, first real build on Linux)
+
+**The shell builds.** `cargo check` and `cargo build --release` both exit 0 once
+`webkit2gtk-4.1` is installed; binary at `src-tauri/target/release/murmur` (4.8 MB ELF).
+`commands.rs`, `tray.rs` and `main.rs` are no longer unverified — they compile.
+
+**`tauri.conf.json` had to be split per platform.** The base config declared
+`bundle.resources = {"binaries/murmur-sidecar.exe": ...}` and `targets: ["msi"]`, both
+Windows-only, and the build script validates the resource path on *every* platform — so
+the Linux build failed with `resource path 'binaries/murmur-sidecar.exe' doesn't exist`
+before compiling a line of project code. Note Tauri **deep-merges** platform overlays: a
+`tauri.linux.conf.json` setting `resources: {}` does *not* remove the parent key. Anything
+platform-specific has to live in the overlay, not the base. Now:
+- `tauri.conf.json` — shared only (`active`, `icon`)
+- `tauri.windows.conf.json` — `msi` target + the frozen-sidecar resource
+- `tauri.linux.conf.json` — `deb`/`appimage` targets
+
+Packaging on Linux still needs a PyInstaller-frozen `murmur-sidecar` (no `.exe`); dev runs
+resolve `sidecar/.venv` instead, which `resolve_launch` in `main.rs` already handles.
+
+**`wtype` does not work on KDE — installing it is not enough.** It requires
+`zwp_virtual_keyboard_manager_v1`; **KWin implements neither that nor
+`zwp_input_method_manager_v2` nor `zwlr_virtual_pointer_manager_v1`** (verified against
+`libkwin.so.6`). It exits with *"Compositor does not support the virtual keyboard
+protocol"*. So on this desktop the backend's preferred Wayland path is a dead end, and the
+XTEST fallback reaches **XWayland clients only** — typing into a native Wayland window
+silently succeeds and goes nowhere.
+
+The only compositor-agnostic option is **`ydotool`**, which writes to `/dev/uinput` so the
+kernel delivers events as a real keyboard. Setup script: `linux/enable-ydotool.sh` (needs
+root once: installs ydotool, creates the `uinput` group + udev rule, adds a `ydotoold`
+user unit). Tradeoff stated in the script: it lets any process running as you synthesize
+input system-wide.
+
+**Known warning:** `PttState::on_other_key` is dead code on Linux — it implements the
+Windows dual-function-key heuristic ("another key was pressed, so the `\` was
+capitalization"), and the portal never delivers other-key events. Harmless; cfg-gate it if
+the warning is noise.

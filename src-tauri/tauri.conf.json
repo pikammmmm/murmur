@@ -15,10 +15,8 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["msi"],
-    "icon": ["icons/icon.ico"],
-    "resources": {
-      "binaries/murmur-sidecar.exe": "murmur-sidecar.exe"
-    }
+    "icon": [
+      "icons/icon.ico"
+    ]
   }
 }
