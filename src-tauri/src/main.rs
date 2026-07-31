@@ -163,6 +163,20 @@ fn setup_overlay(app: &AppHandle) {
         .skip_taskbar(true)
         .resizable(false)
         .focused(false)
+        // `focused(false)` only governs the *initial* map; a later show() still
+        // takes focus, which deactivates whatever text field you were dictating
+        // into for the whole recording. `focusable(false)` is the persistent
+        // property and fixes that on Windows (WS_EX_NOACTIVATE) and X11.
+        //
+        // It is NOT sufficient on Wayland: it maps to GTK accept_focus, which is
+        // an X11 WM_HINTS concept the GDK Wayland backend ignores, and xdg-shell
+        // has no "do not focus me" hint at all — KWin focuses every newly mapped
+        // toplevel. Verified: the overlay still became the active window for the
+        // whole recording. The real fix there is zwlr_layer_shell_v1 with
+        // keyboard-interactivity none (KWin implements it, and gtk-layer-shell is
+        // already a dependency); until that lands, `overlay: false` in config.json
+        // is the escape hatch.
+        .focusable(false)
         .shadow(false)
         .inner_size(OVERLAY_W, OVERLAY_H)
         .visible(false)
