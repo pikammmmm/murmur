@@ -241,10 +241,75 @@ def test_no_active_window_yields_empty(monkeypatch):
     monkeypatch.setattr(lx, "_exe_for_pid", lambda pid: "")
 
 
+def _fake_kwin(monkeypatch, fields):
+    """Drive _active_window_kwin without KWin.
+
+    The nonce is generated inside the function, so the fake reads it back out of
+    the script file handed to loadScript and echoes it in the journal output —
+    which also asserts that the script we write and the line we look for agree.
+    """
+    import re
+
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        if "loadScript" in cmd:
+            js = open(cmd[8], encoding="utf-8").read()
+            seen["nonce"] = re.search(r"MURMURFOCUS[0-9a-f]+", js).group(0)
+            seen["plugin"] = cmd[9]
+            return b""
+        if cmd[0] == "journalctl":
+            if fields is None:
+                return b"unrelated kwin chatter\n"
+            body = "\x1f".join(str(f) for f in fields)
+            return ("noise\n%s\t%s\n" % (seen["nonce"], body)).encode("utf-8")
+        if "unloadScript" in cmd:
+            seen["unloaded"] = cmd[-1]
+        return b""
+
+    monkeypatch.setattr(lx, "_run", fake_run)
+    return seen
+
+
+def test_kwin_probe_parses_class_pid_and_caption(monkeypatch):
+    seen = _fake_kwin(monkeypatch, ("org.kde.konsole", 4012, "~ : murmur — Konsole"))
+    monkeypatch.setattr(lx, "_exe_for_pid", lambda pid: "konsole" if pid == 4012 else "")
+    # The pid's real process name wins over resourceClass, which is inconsistent
+    # between the Wayland and XWayland backends.
+    assert lx._active_window_kwin() == ("konsole", "~ : murmur — Konsole")
+    # The script must always be unloaded, under the same name it was loaded with.
+    assert seen["unloaded"] == seen["plugin"]
+
+
+def test_kwin_probe_falls_back_to_resource_class_without_a_pid(monkeypatch):
+    _fake_kwin(monkeypatch, ("firefox", 0, "Mozilla Firefox"))
+    monkeypatch.setattr(lx, "_exe_for_pid", lambda pid: "")
+    assert lx._active_window_kwin() == ("firefox", "Mozilla Firefox")
+
+
+def test_kwin_probe_treats_the_lock_screen_as_no_window(monkeypatch):
+    # KWin's own captionless surface is the lock screen / an OSD — never a
+    # dictation target, so it must not become a formatting context.
+    _fake_kwin(monkeypatch, ("kwin_wayland", 996, ""))
+    monkeypatch.setattr(lx, "_exe_for_pid", lambda pid: "kwin_wayland")
+    assert lx._active_window_kwin() == ("", "")
+
+
+def test_kwin_probe_gives_up_quietly_when_nothing_is_printed(monkeypatch):
+    _fake_kwin(monkeypatch, None)
+    assert lx._active_window_kwin() == ("", "")
+
+
 def test_active_window_returns_empty_when_all_probes_fail(monkeypatch):
+    """Every probe raising must degrade to the generic profile, not propagate.
+
+    All three are broken explicitly — including the KWin one, which runs first on
+    a KDE session and would otherwise answer for real and mask the fallback.
+    """
     def boom():
         raise RuntimeError("no X server")
 
+    monkeypatch.setattr(lx, "_active_window_kwin", boom)
     monkeypatch.setattr(lx, "_active_window_xlib", boom)
     monkeypatch.setattr(lx, "_active_window_xprop", boom)
     assert lx.LinuxBackend().active_window() == ("", "")

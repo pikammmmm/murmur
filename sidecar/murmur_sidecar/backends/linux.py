@@ -23,6 +23,7 @@ import math
 import os
 import shutil
 import subprocess
+import time
 
 from .base import Backend
 
@@ -227,7 +228,14 @@ class LinuxBackend(Backend):
 
     # --- window context -------------------------------------------------
     def active_window(self):
-        for probe in (_active_window_xlib, _active_window_xprop):
+        # KWin first on KDE: it is the only probe that sees native Wayland
+        # clients, which the EWMH probes are structurally blind to. The X11
+        # probes still run after it, both as the answer on real X11 sessions and
+        # as a fallback if the compositor query fails.
+        probes = (_active_window_xlib, _active_window_xprop)
+        if _kwin_ok():
+            probes = (_active_window_kwin,) + probes
+        for probe in probes:
             try:
                 exe, title = probe()
                 if exe or title:
@@ -272,7 +280,7 @@ class LinuxBackend(Backend):
             "typing": getattr(c, "name", None),
             "clipboard": clip,
             "audio": next((t for t in ("paplay", "pw-play", "canberra-gtk-play") if _has(t)), None),
-            "window": "xlib" if _xlib_ok() else ("xprop" if _has("xprop") else None),
+            "window": "kwin" if _kwin_ok() else ("xlib" if _xlib_ok() else ("xprop" if _has("xprop") else None)),
         }
 
 
@@ -333,6 +341,114 @@ def _exe_for_pid(pid):
             return fh.read().strip()
     except Exception:
         return ""
+
+
+def _kwin_ok():
+    """KWin scripting is reachable: a KDE session with busctl + journalctl."""
+    return (
+        "kde" in os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
+        and _has("busctl")
+        and _has("journalctl")
+    )
+
+
+# KWin evaluates this, printing one tab-separated line we recover from the
+# journal. Fields are unit-separator joined so a caption containing a tab (or
+# anything else) cannot desync the parse.
+_KWIN_JS = (
+    'var w = workspace.activeWindow;\n'
+    'print("%s\\t" + (w ? [w.resourceClass, w.pid, w.caption].join("\\u001f") : ""));\n'
+)
+
+
+def _active_window_kwin():
+    """Ask KWin directly, the only route that sees native Wayland clients.
+
+    Wayland deliberately forbids clients from inspecting each other, so the EWMH
+    probes below are blind to every non-XWayland window — which on Plasma 6 is
+    most of them. The compositor itself is not blind, and KWin exposes a
+    scripting engine over D-Bus, so we load a one-shot script, read what it
+    printed out of the journal, and unload it. Measured at roughly 10ms.
+
+    The script is loaded under a nonce-suffixed plugin name because `loadScript`
+    returns -1 for a name that is already registered, and `start()` starts every
+    loaded-but-idle script — so concurrent callers would otherwise read each
+    other's output. The same nonce tags the printed line.
+    """
+    import secrets
+    import tempfile
+
+    nonce = "MURMURFOCUS" + secrets.token_hex(6)
+    plugin = "murmurfocus" + nonce[-8:]
+    path = None
+    loaded = False
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".js", prefix="murmur-focus-", delete=False, encoding="utf-8"
+        ) as fh:
+            fh.write(_KWIN_JS % nonce)
+            path = fh.name  # loadScript requires an absolute path
+
+        _run([
+            "busctl", "--user", "call", "org.kde.KWin", "/Scripting",
+            "org.kde.kwin.Scripting", "loadScript", "ss", path, plugin,
+        ], capture=True)
+        loaded = True
+        _run([
+            "busctl", "--user", "call", "org.kde.KWin", "/Scripting",
+            "org.kde.kwin.Scripting", "start",
+        ])
+
+        # print() reaches the journal asynchronously; poll briefly rather than
+        # sleeping a fixed worst case.
+        deadline = time.time() + 0.5
+        while time.time() < deadline:
+            out = _run(
+                ["journalctl", "--user", "-b", "-t", "kwin_wayland", "-o", "cat", "-n", "80"],
+                capture=True,
+            ).decode("utf-8", "replace")
+            for line in reversed(out.splitlines()):
+                if nonce not in line:
+                    continue
+                payload = line.split(nonce + "\t", 1)[-1].strip()
+                if not payload:
+                    return ("", "")  # nothing focused
+                parts = payload.split("\x1f")
+                cls = parts[0] if parts else ""
+                pid = 0
+                if len(parts) > 1:
+                    try:
+                        pid = int(parts[1])
+                    except ValueError:
+                        pid = 0
+                title = parts[2] if len(parts) > 2 else ""
+                # KWin's own surfaces (lock screen, OSDs, the switcher) are not
+                # dictation targets; treat them as "no window" so the caller
+                # falls back to the generic profile.
+                if cls == "kwin_wayland" and not title:
+                    return ("", "")
+                # The pid's real process name beats resourceClass, which differs
+                # between backends (org.kde.konsole on Wayland, konsole on X11).
+                return (_exe_for_pid(pid) or cls, title)
+            time.sleep(0.02)
+        return ("", "")
+    except Exception as exc:
+        log.debug("kwin focus probe failed: %s", exc)
+        return ("", "")
+    finally:
+        if loaded:
+            try:
+                _run([
+                    "busctl", "--user", "call", "org.kde.KWin", "/Scripting",
+                    "org.kde.kwin.Scripting", "unloadScript", "s", plugin,
+                ], capture=True)
+            except Exception:
+                log.debug("kwin script %s left loaded", plugin)
+        if path:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
 
 
 def _active_window_xlib():
