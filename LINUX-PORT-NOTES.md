@@ -275,24 +275,25 @@ drops a release event will leave murmur recording.
    fires. Run with `./linux/murmur-ptt-binder.py`, or install
    `linux/murmur-ptt-binder.service` as a --user unit.
 
-   **Trigger is bare backslash by default, matching Windows — with one caveat that
-   cannot be engineered away.** A global shortcut on a printable key *grabs* it, so
-   while the binder is running `\` stops typing anywhere on the desktop. The Windows
-   build had it both ways because `WH_KEYBOARD_LL` can suppress the keystroke and
-   synthesize a real `\` on a short tap; `org.freedesktop.portal.GlobalShortcuts`
-   exposes no suppress-and-resynthesize primitive, so **tap-to-type cannot be
-   reproduced through the portal.** Three options:
+   **Trigger defaults to `SUPER+backslash`** — the same physical key as the Windows
+   build, so the muscle memory carries over, while the grab covers only the
+   *combination*: bare `\` still types normally.
 
-   - Accept it — `\` becomes a dedicated PTT key.
-   - `MURMUR_PTT_TRIGGER='CTRL+ALT+SPACE'` (or any modifier combo) — nothing is grabbed
-     that you'd otherwise type.
-   - **evdev backend (not implemented).** Reading `/dev/input/event*` observes the key
-     *without* consuming it, so `\` keeps typing and hold-to-talk still works — at the
-     cost of a stray `\` landing in the field on each hold, which the injector would
-     need to backspace before typing the transcript. Requires one-time
-     `sudo usermod -aG input $USER` + re-login. True Windows-style suppression would
-     additionally need `EVIOCGRAB` + `/dev/uinput` re-emission, which makes the binder
-     a single point of failure for the whole keyboard — not recommended.
+   A bare printable trigger (plain `\`) would be grabbed outright and `\` would stop
+   working desktop-wide. Windows avoided that because `WH_KEYBOARD_LL` can suppress a
+   keystroke and synthesize a real `\` on a short tap; GlobalShortcuts has no
+   suppress-and-resynthesize primitive, so **tap-to-type cannot be reproduced through
+   the portal** — a printable key is either grabbed or not observed.
+
+   Super rather than Ctrl because `Ctrl+\` sends SIGQUIT in a terminal. Override with
+   `MURMUR_PTT_TRIGGER`, e.g. `CTRL+ALT+SPACE` (verified accepted by the portal).
+
+   Wanting plain `\` as the trigger *and* still being able to type it needs an **evdev
+   backend** (not implemented): reading `/dev/input/event*` observes the key without
+   consuming it, at the cost of a stray `\` per hold for the injector to backspace.
+   Requires `sudo usermod -aG input $USER`. True Windows-style suppression would also
+   need `EVIOCGRAB` + `/dev/uinput` re-emission, making the binder a single point of
+   failure for the whole keyboard — not recommended.
 2. **Build the shell** once `webkit2gtk-4.1` is installed, then re-check
    `commands.rs`, `tray.rs` and `main.rs` — those are the only modules that
    have *not* been type-checked on Linux, because they need Tauri.
