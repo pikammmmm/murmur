@@ -6,6 +6,7 @@ tries the primary, then the fallback, then returns "" — it never raises, so a
 dead network or a missing local model can't crash a dictation.
 """
 import logging
+import sys
 
 log = logging.getLogger("murmur.stt")
 
@@ -47,14 +48,27 @@ def _build(provider, cfg, keys):
             stt.get("vad_filter", True),
         )
     if provider == "gpu":
-        # GPU Whisper via DirectML (AMD/any DX12 GPU). Lazy: needs torch-directml
-        # + openai-whisper in the venv; if absent it raises at transcribe time and
+        # GPU Whisper. The API differs per platform: DirectML on Windows (any
+        # DX12 GPU, including AMD), ROCm on Linux. Neither is portable, and the
+        # usual Linux answer does not apply -- faster-whisper's CTranslate2
+        # backend is CUDA-only, so an AMD card gets nothing from it.
+        #
+        # Lazy in both cases: the heavy deps live outside the frozen CPU sidecar,
+        # and if they are missing this raises at transcribe time so
         # transcribe_with_fallback drops to the local CPU transcriber.
-        from .directml import DirectMLTranscriber
-        return DirectMLTranscriber(
+        if sys.platform == "win32":
+            from .directml import DirectMLTranscriber
+            return DirectMLTranscriber(
+                stt.get("gpu_model", "large-v3"),
+                lang,
+                stt.get("beam_size", 5),
+            )
+        from .rocm import RocmTranscriber
+        return RocmTranscriber(
             stt.get("gpu_model", "large-v3"),
             lang,
             stt.get("beam_size", 5),
+            stt.get("gpu_fp16", True),
         )
     if provider == "groq":
         if not keys.get("groq"):
