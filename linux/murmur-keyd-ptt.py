@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Drive murmur's push-to-talk from keyd, giving bare-key hold-to-talk.
+"""Drive murmur's push-to-talk from keyd.
+
+Trigger: hold left Ctrl + Super + Alt together (see keyd-murmur.conf).
 
 This is the alternative to murmur-ptt-binder.py (the portal route). Use one or
 the other, never both -- they would both write `down`/`up` to the same socket.
@@ -13,6 +15,8 @@ Why not the portal:
   * Binding Meta+backslash avoids that but leaks a stray `\\`: release Meta a
     moment before the still-held `\\` and the combination stops matching while
     the key is physically down, so the bare key reaches the focused window.
+  * It refuses a modifier-only trigger outright -- a global shortcut there
+    needs a non-modifier key.
 
 keyd sits below the compositor -- it grabs the physical keyboard and re-emits
 through its own virtual device -- so it can classify tap-vs-hold before anything
