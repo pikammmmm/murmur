@@ -5,10 +5,9 @@ use std::sync::{Arc, Mutex};
 
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{
-    AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, RunEvent, WebviewUrl,
-    WebviewWindowBuilder,
-};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
+#[cfg(not(target_os = "linux"))]
+use tauri::{LogicalSize, PhysicalPosition};
 
 #[macro_use]
 mod logger;
@@ -141,6 +140,9 @@ fn resolve_launch(config_path: &PathBuf) -> Launch {
 
 const OVERLAY_W: f64 = 300.0;
 const OVERLAY_H: f64 = 120.0;
+/// Gap from the bottom of the screen. Used by the layer-shell anchor on Linux
+/// and by the manual placement everywhere else.
+const OVERLAY_MARGIN_PX: i32 = 40;
 
 /// Show the overlay, applying click-through once it is realized.
 ///
@@ -195,11 +197,46 @@ fn setup_overlay(app: &AppHandle) {
     // process on Linux. Deferred to `show_overlay()` instead.
     #[cfg(windows)]
     let _ = overlay.set_ignore_cursor_events(true); // clicks pass through
+
+    // On Wayland an ordinary xdg-toplevel cannot refuse focus and cannot place
+    // itself. `focusable(false)` does not help: it maps to GTK accept_focus,
+    // an X11 WM_HINTS concept the GDK Wayland backend ignores, so KWin focused
+    // the indicator for the whole recording and deactivated whatever field the
+    // user was dictating into.
+    //
+    // zwlr_layer_shell_v1 solves both at once — a layer surface with
+    // keyboard-interactivity NONE is never focusable, and anchors instead of
+    // guessing coordinates. KWin implements it. Must run before the window is
+    // realized, which `.visible(false)` guarantees.
+    #[cfg(target_os = "linux")]
+    {
+        use gtk_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
+        match overlay.gtk_window() {
+            Ok(w) => {
+                w.init_layer_shell();
+                w.set_layer(Layer::Overlay);
+                w.set_keyboard_mode(KeyboardMode::None); // the whole point
+                w.set_anchor(Edge::Bottom, true);
+                // Named set_layer_shell_margin, not set_margin: GtkWidget already
+                // has a set_margin, so the binding renames it to avoid the clash.
+                w.set_layer_shell_margin(Edge::Bottom, OVERLAY_MARGIN_PX);
+                // Anchored to one edge only, so the compositor centres it on the
+                // other axis. 0 = reserve no space; this floats over windows
+                // rather than shrinking their work area like a panel would.
+                w.set_exclusive_zone(0);
+                mlog!("overlay: layer-shell active (non-focusable, bottom-anchored)");
+            }
+            Err(e) => mlog!("overlay: no gtk window ({e}); falling back to a plain toplevel"),
+        }
+    }
+    // Layer-shell anchors the window itself, and a Wayland client cannot
+    // position a toplevel regardless, so this is Windows/X11 only.
+    #[cfg(not(target_os = "linux"))]
     if let Ok(Some(monitor)) = app.primary_monitor() {
         let scale = monitor.scale_factor();
         let size = monitor.size();
         let phys = LogicalSize::new(OVERLAY_W, OVERLAY_H).to_physical::<u32>(scale);
-        let margin = (40.0 * scale) as i32;
+        let margin = (OVERLAY_MARGIN_PX as f64 * scale) as i32;
         let x = ((size.width as i32) - (phys.width as i32)) / 2;
         let y = (size.height as i32) - (phys.height as i32) - margin;
         let _ = overlay.set_position(PhysicalPosition::new(x, y));
