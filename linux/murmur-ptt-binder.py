@@ -46,6 +46,16 @@ PORTAL_PATH = "/org/freedesktop/portal/desktop"
 SHORTCUTS_IFACE = "org.freedesktop.portal.GlobalShortcuts"
 REQUEST_IFACE = "org.freedesktop.portal.Request"
 
+# KDE consults `preferred_trigger` only the first time it sees an
+# (app id, shortcut id) pair; afterwards the binding is remembered, and since
+# Plasma 6 runs kglobalaccel inside kwin_wayland there is no way to make it
+# forget without restarting the compositor (which ends the Wayland session).
+# Deleting the kglobalshortcutsrc entry does not clear the in-memory registry,
+# and setForeignShortcutKeys drops its D-Bus reply without applying the change.
+#
+# What does work: write the desired binding into kglobalshortcutsrc *before* the
+# component registers. KWin loads the stored value at registration time, so a
+# pre-seeded entry wins where the live API does not.
 SHORTCUT_ID = "push-to-talk"
 # Portal syntax is XDG shortcuts spec, not Qt: modifiers are CAPS, joined by '+'.
 # The user can always re-bind in the system dialog; this is only the suggestion.
@@ -55,6 +65,19 @@ SHORTCUT_ID = "push-to-talk"
 # normally. A bare printable trigger would be grabbed outright and `\` would stop
 # working desktop-wide; Windows avoided that by suppressing the keystroke and
 # synthesizing a real `\` on a short tap, which the portal cannot do.
+#
+# That last point was tested rather than assumed, because ydotool made
+# "synthesize it ourselves" look possible: bind bare `backslash`, and on a short
+# hold re-send the character. It does not work. The portal grabs by KEY, not by
+# device, so the keystroke injected through uinput is grabbed exactly like the
+# physical one — measured with a Qt input field, which stayed empty — and it
+# re-enters as another tap, injecting again in a loop. A bare printable trigger
+# therefore means that character is simply dead desktop-wide.
+#
+# Doing this properly needs interception below the compositor: keyd (or similar)
+# grabbing the physical device and emitting a NON-printable key on hold, e.g.
+# tap -> `\`, hold -> F13, with the portal bound to F13 so the grab never covers
+# `\` at all. That needs root and is not wired up here.
 #
 # Super rather than Ctrl because Ctrl+\ sends SIGQUIT in a terminal. Override with
 # MURMUR_PTT_TRIGGER, e.g. 'CTRL+ALT+SPACE'.
