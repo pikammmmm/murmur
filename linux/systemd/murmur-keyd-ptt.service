@@ -11,7 +11,15 @@ Conflicts=app-murmur\x2dptt@autostart.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 -u /home/pikammmmm/murmur/linux/murmur-keyd-ptt.py
+# `keyd listen` talks to /var/run/keyd.socket, which is root:keyd 0660, so this
+# needs the `keyd` group. A user unit cannot use SupplementaryGroups= (that
+# needs CAP_SETGID, which the per-user manager does not have), and the groups a
+# session already holds are fixed at login -- so `usermod -aG keyd` alone leaves
+# this failing until the next logout. sg re-execs with the group applied, which
+# works immediately and stays a harmless no-op once the login session picks the
+# membership up on its own. Default KillMode=control-group reaps the python
+# child with it, so the extra process layer costs nothing on shutdown.
+ExecStart=/usr/bin/sg keyd -c "/usr/bin/python3 -u /home/pikammmmm/murmur/linux/murmur-keyd-ptt.py"
 Restart=always
 RestartSec=3
 Slice=app.slice

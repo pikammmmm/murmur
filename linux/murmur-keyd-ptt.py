@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Drive murmur's push-to-talk from keyd.
 
-Trigger: hold left Ctrl + Super + Alt together (see keyd-murmur.conf).
+Trigger: hold BARE backslash (see keyd-murmur.conf); tap it to type a `\\`.
 
 This is the alternative to murmur-ptt-binder.py (the portal route). Use one or
 the other, never both -- they would both write `down`/`up` to the same socket.
@@ -29,7 +29,14 @@ Setup (needs root once):
 
     sudo install -Dm644 ~/murmur/linux/keyd-murmur.conf /etc/keyd/default.conf
     sudo systemctl enable --now keyd
-    sudo usermod -aG keyd $USER      # then log out and back in
+    sudo usermod -aG keyd $USER
+
+The group is needed for /var/run/keyd.socket (root:keyd 0660) and does not
+apply to an already-running session, but a re-login is not required: the systemd
+unit wraps this in `sg keyd -c`, which picks the membership up immediately.
+
+Note `keyd reload` segfaults on v2.6.0 with this config -- use
+`sudo systemctl restart keyd` after editing it.
 """
 from __future__ import annotations
 

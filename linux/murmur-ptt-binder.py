@@ -74,10 +74,13 @@ SHORTCUT_ID = "push-to-talk"
 # re-enters as another tap, injecting again in a loop. A bare printable trigger
 # therefore means that character is simply dead desktop-wide.
 #
-# Doing this properly needs interception below the compositor: keyd (or similar)
-# grabbing the physical device and emitting a NON-printable key on hold, e.g.
-# tap -> `\`, hold -> F13, with the portal bound to F13 so the grab never covers
-# `\` at all. That needs root and is not wired up here.
+# Doing this properly needs interception below the compositor, which is what
+# keyd does: it grabs the physical device and re-emits through its own, so it can
+# withhold the character until it knows whether the press was a tap or a hold.
+# That costs root once, so it lives in the sibling binder rather than here --
+# see linux/murmur-keyd-ptt.py and linux/keyd-murmur.conf, which are now the
+# default and give the bare `\` back. THIS binder is the no-root fallback, and a
+# combination trigger is the best it can do.
 #
 # Super rather than Ctrl because Ctrl+\ sends SIGQUIT in a terminal. Override with
 # MURMUR_PTT_TRIGGER, e.g. 'CTRL+ALT+SPACE'.

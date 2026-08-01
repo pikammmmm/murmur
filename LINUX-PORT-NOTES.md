@@ -239,17 +239,31 @@ printf 'up\n'   | nc -U "$XDG_RUNTIME_DIR/murmur-ptt.sock"
 ```
 
 The protocol and its effect on the state machine are unit-tested (6 tests in
-`hotkey::imp::tests`). **The socket listener itself has never been exercised
-against a real keypress** — that needs a physical key and a portal consent
-dialog, neither of which can be driven from a shell. Treat the hotkey layer as
-compiled and unit-tested, *not* as verified working.
+`hotkey::imp::tests`). The socket listener has since been exercised end to end by
+both binders against real keypresses — `~/.local/share/murmur/history.jsonl`
+holds the resulting transcripts.
 
 ### What is lost
 
-The **dual-function text key cannot be reproduced.** Tapping `\` to type a
-backslash while holding it dictates requires suppressing the original keystroke,
-and no unprivileged Linux mechanism can do that. On Linux, configure a
-modifier-style trigger (right Ctrl / right Alt) and bind it through the portal.
+The **dual-function text key needs root once.** Tapping `\` to type a backslash
+while holding it dictates requires suppressing the original keystroke, and no
+*unprivileged* Linux mechanism can do that — so the portal binder cannot have it
+and falls back to a modifier-style trigger.
+
+`keyd` can, because it works a layer lower: it grabs the physical device with
+`EVIOCGRAB` and re-emits through its own virtual one, so it resolves tap-vs-hold
+before the compositor sees a thing. That is now the default binder
+(`linux/murmur-keyd-ptt.py`, `linux/keyd-murmur.conf`) and it restores the exact
+Windows feel — bare `\`. It costs a one-time root install and a `keyd` group
+membership; see the script's docstring.
+
+Verified on 2026-08-01 against a synthetic uinput keyboard, reading keyd's own
+virtual keyboard back with evdev while watching `keyd listen`: over 3/3 rounds an
+800 ms hold entered and left the `dictate` layer while emitting **no** keystroke,
+and a 60 ms tap emitted exactly one clean `KEY_BACKSLASH` down/up. Note that
+`overload()` enters the layer on key *down*, so a tap also raises
+`+dictate`/`-dictate` — harmless, because `hotkey.hold_threshold_ms` (350) is what
+decides whether a down/up pair records.
 
 `physically_down()` also degrades: Windows cross-checks `GetAsyncKeyState` to
 self-heal a key-up missed behind an elevated window. Linux has no such probe for

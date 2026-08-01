@@ -19,10 +19,15 @@
 //! hold-to-talk requires and which plain KDE `kglobalaccel` shortcuts do not
 //! provide. See LINUX-PORT-NOTES.md for the wiring.
 //!
-//! Consequence to be aware of: the dual-function text key (tap `\` to type a
-//! backslash, hold it to dictate) cannot be reproduced this way, because we
-//! never get the chance to suppress the original keystroke. On Linux, pick a
-//! modifier-style trigger.
+//! The dual-function text key (tap `\` to type a backslash, hold it to dictate)
+//! is out of reach for the portal specifically: its grab is by key, so a bare
+//! printable trigger is swallowed desktop-wide and re-injecting the character
+//! only feeds the grab again. It is reachable one layer lower — `keyd` grabs the
+//! physical device and re-emits through its own, so it can resolve tap-vs-hold
+//! before the compositor sees anything. That is the production binder here
+//! (`linux/murmur-keyd-ptt.py` + `linux/keyd-murmur.conf`, root once to install);
+//! the portal binder remains as the no-root fallback, on a modifier-style
+//! trigger. Either way this module just reads down/up off the socket.
 use std::io::{BufRead, BufReader};
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
