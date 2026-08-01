@@ -1,0 +1,26 @@
+[Unit]
+Description=murmur — hold-to-talk voice dictation
+Documentation=file:///home/pikammmmm/murmur/README.md
+# The Tauri/GTK shell needs a live compositor, and the tray icon needs a
+# StatusNotifier host: an icon registered before plasmashell owns its bus name
+# is lost for the whole session with no error. plasma-plasmashell.service is
+# Type=dbus, so ordering after it *is* ordering after that name is acquired.
+# After= against a unit that does not exist is a silent no-op, so this stays
+# portable to a non-Plasma session.
+After=graphical-session.target plasma-plasmashell.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+# Resolves the sidecar from $HOME (not the cwd), and reads ANTHROPIC_API_KEY
+# from ~/.config/environment.d/murmur.conf, which the user manager loads before
+# any unit starts — so no WorkingDirectory= or EnvironmentFile= is needed here.
+ExecStart=/home/pikammmmm/murmur/src-tauri/target/release/murmur
+# Tray -> Quit calls app.exit(0), so on-failure (not always) lets a deliberate
+# quit stick for the rest of the session while still recovering from a crash.
+Restart=on-failure
+RestartSec=3
+Slice=app.slice
+
+[Install]
+WantedBy=graphical-session.target
