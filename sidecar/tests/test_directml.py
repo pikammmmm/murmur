@@ -3,6 +3,8 @@
 Construction is lazy (no torch import), so these run anywhere. The real GPU
 inference test is guarded by importorskip so it only runs where torch-directml
 is installed (e.g. the dev machine)."""
+import sys
+
 import numpy as np
 import pytest
 
@@ -17,9 +19,20 @@ def _cfg(provider="gpu", **stt):
     return {"stt": base}
 
 
-def test_gpu_provider_builds_directml_with_local_fallback():
+def test_gpu_provider_builds_the_platform_gpu_backend_with_local_fallback():
+    """The "gpu" provider is one config value with two implementations.
+
+    DirectML on Windows, ROCm on Linux — faster-whisper's CTranslate2 backend is
+    CUDA-only, so an AMD card gets nothing from it on either OS. Asserting
+    DirectML unconditionally passed only because this suite used to run on
+    Windows alone; on Linux it built ROCm and failed.
+    """
     primary, fallback = make_transcriber(_cfg("gpu"), keys={})
-    assert isinstance(primary, DirectMLTranscriber)
+    if sys.platform == "win32":
+        assert isinstance(primary, DirectMLTranscriber)
+    else:
+        from murmur_sidecar.stt.rocm import RocmTranscriber
+        assert isinstance(primary, RocmTranscriber)
     assert primary.model_size == "large-v3"
     assert primary.language == "en" and primary.beam_size == 5
     # CPU faster-whisper stays as automatic fallback so a GPU failure never

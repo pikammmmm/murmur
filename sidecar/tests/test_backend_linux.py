@@ -24,6 +24,20 @@ def installed(*tools):
     return lambda tool: tool in set(tools)
 
 
+@pytest.fixture(autouse=True)
+def usable_probes(monkeypatch):
+    """Make the "installed AND actually works" probes say yes by default.
+
+    `_typing_candidates` gates wtype and ydotool behind a runtime probe, so
+    stubbing `_has` alone is not enough to isolate a test: on KWin the real
+    `_wtype_works` shells out and fails, and preference-order tests then quietly
+    assert the host's compositor rather than the ordering they name. Tests that
+    care about a probe failing override it explicitly.
+    """
+    monkeypatch.setattr(lx, "_wtype_works", lambda: True)
+    monkeypatch.setattr(lx, "_ydotool_works", lambda: True)
+
+
 # --- session detection --------------------------------------------------
 
 
@@ -52,6 +66,19 @@ def test_wayland_prefers_wtype_over_xdotool(monkeypatch):
     monkeypatch.setenv("XDG_SESSION_TYPE", "wayland")
     monkeypatch.setattr(lx, "_has", installed("wtype", "xdotool"))
     assert lx.LinuxBackend().make_controller().name == "wtype"
+
+
+def test_installed_but_unusable_wtype_is_skipped(monkeypatch):
+    """The KWin case, which is the whole reason the probe exists.
+
+    wtype installs cleanly there and then cannot type: KWin implements neither
+    zwp_virtual_keyboard_manager_v1 nor zwp_input_method_manager_v2. Picking it
+    on presence alone yields a backend that reports success and types nothing.
+    """
+    monkeypatch.setenv("XDG_SESSION_TYPE", "wayland")
+    monkeypatch.setattr(lx, "_has", installed("wtype", "ydotool"))
+    monkeypatch.setattr(lx, "_wtype_works", lambda: False)
+    assert lx.LinuxBackend().make_controller().name == "ydotool"
 
 
 def test_x11_prefers_xdotool_over_wtype(monkeypatch):

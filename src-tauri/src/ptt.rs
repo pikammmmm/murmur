@@ -59,6 +59,11 @@ impl PttState {
 
     /// Any non-trigger key down. Before recording starts this cancels the arm
     /// (the trigger was a modifier for that key, e.g. a capital letter).
+    ///
+    /// Only the Windows hook observes non-trigger keys — on Linux the binder
+    /// reports the trigger alone — so this is genuinely unused there and would
+    /// otherwise warn on every Linux build. Its tests still exercise it.
+    #[cfg_attr(not(any(windows, test)), allow(dead_code))]
     pub fn on_other_key(&mut self, _now_ms: u64) {
         if !self.recording {
             self.armed_at = None;
