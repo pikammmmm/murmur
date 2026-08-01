@@ -1,8 +1,12 @@
 [Desktop Entry]
+# TEMPLATE. @REPO@ is substituted for the checkout path by linux/install.sh,
+# which renders this into ~/.local/share/applications/. Unlike a systemd unit a
+# desktop entry has no "%h" specifier -- every % code here means something else
+# to the spec -- so the absolute path has to be baked in at install time.
 Type=Application
 Name=murmur — push to talk
 Comment=Holds a global shortcut and drives murmur's dictation socket
-Exec=/usr/bin/python3 /home/pikammmmm/murmur/linux/murmur-ptt-binder.py
+Exec=/usr/bin/python3 @REPO@/linux/murmur-ptt-binder.py
 Icon=audio-input-microphone
 Terminal=false
 # Not something to launch from the menu — it exists so the GlobalShortcuts

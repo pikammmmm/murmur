@@ -103,9 +103,32 @@ fn resolve_launch(config_path: &PathBuf) -> Launch {
     #[cfg(not(windows))]
     let (home_var, bin_dir, py_exe) = ("HOME", "bin", "python");
 
+    // Two candidate checkouts, in order. First the one derived from our own
+    // location: a dev/source build sits at <repo>/src-tauri/target/<profile>/,
+    // so <repo>/sidecar is three levels up. That makes a clone work wherever it
+    // was put, which `~/murmur` alone does not — and an installer cannot
+    // reasonably demand one exact directory. Then the historical `~/murmur`,
+    // kept so an existing install keeps resolving if the binary is moved.
     let home = std::env::var(home_var).unwrap_or_default();
-    let sidecar_dir = PathBuf::from(&home).join("murmur").join("sidecar");
-    let venv_py = sidecar_dir.join(".venv").join(bin_dir).join(py_exe);
+    let mut roots: Vec<PathBuf> = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(repo) = exe.parent().and_then(|d| d.parent()).and_then(|d| d.parent())
+            .and_then(|d| d.parent())
+        {
+            roots.push(repo.join("sidecar"));
+        }
+    }
+    roots.push(PathBuf::from(&home).join("murmur").join("sidecar"));
+
+    let venv_of = |dir: &PathBuf| dir.join(".venv").join(bin_dir).join(py_exe);
+    // The last root is the fallback that gets reported when nothing resolves,
+    // so an error message still names a concrete path.
+    let sidecar_dir = roots
+        .iter()
+        .find(|d| venv_of(d).exists() && d.join("main.py").exists())
+        .cloned()
+        .unwrap_or_else(|| roots.last().cloned().unwrap_or_default());
+    let venv_py = venv_of(&sidecar_dir);
     let main_py = sidecar_dir.join("main.py");
     let venv_launch = || Launch {
         program: venv_py.clone(),
