@@ -1,0 +1,20 @@
+[Unit]
+Description=murmur push-to-talk via keyd (bare-key hold to talk)
+Documentation=file:///home/pikammmmm/murmur/linux/murmur-keyd-ptt.py
+# Needs the keyd system daemon, but a user unit cannot order against a system
+# one, so the script tolerates keyd being absent and this restarts until it is up.
+After=graphical-session.target
+PartOf=graphical-session.target
+# Mutually exclusive with the portal binder: both write down/up to the same
+# socket, so running both would start recording twice per hold.
+Conflicts=app-murmur\x2dptt@autostart.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -u /home/pikammmmm/murmur/linux/murmur-keyd-ptt.py
+Restart=always
+RestartSec=3
+Slice=app.slice
+
+[Install]
+WantedBy=graphical-session.target
