@@ -59,7 +59,7 @@ murmur/
     index.html          # settings + dictionary UI
     main.js
     style.css
-  docs/superpowers/...  # spec + this plan
+   docs/design/       # spec + this plan
 ```
 
 ---

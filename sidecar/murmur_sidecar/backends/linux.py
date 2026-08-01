@@ -15,7 +15,7 @@ because they also reach native Wayland clients; the XTEST path only reaches
 X11/XWayland clients. On X11 the order flips to put xdotool first.
 
 Nothing here needs root. The one capability Linux genuinely cannot offer to an
-unprivileged process is *global* key interception (see LINUX-PORT-NOTES.md) —
+unprivileged process is *global* key interception (see docs/LINUX-PORT-NOTES.md) —
 but that lives in the Rust shell, not the sidecar.
 """
 import array

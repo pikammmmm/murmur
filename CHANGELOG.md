@@ -144,3 +144,32 @@
   No behavior changes intended. 197 Python tests green; frozen sidecar
   smoke-tested (boot → idle → clean quit).
 - New `sidecar/smoke_frozen.py`: one-shot boot smoke test for the frozen exe.
+
+## Linux port — Arch / KDE Plasma (Wayland)
+- **murmur runs on Linux.** The Rust shell and the Python sidecar both build and
+  run natively; `linux/install.sh` is a one-shot Arch installer (system packages,
+  sidecar venv, release build, trigger, injection, systemd user units, autostart)
+  with `linux/uninstall.sh` to reverse it.
+- **Hold a bare `\` to dictate; tap it to type a backslash** — the same
+  dual-function key as Windows. The XDG GlobalShortcuts portal cannot do this:
+  it grabs *by key*, so a bare printable trigger is swallowed desktop-wide and
+  re-injecting the character on a tap only feeds the grab again. `keyd` grabs the
+  physical device below the compositor and re-emits through its own, so it
+  resolves tap-vs-hold before anything else sees the key. The portal binder
+  remains as a no-root fallback on a modifier-style trigger.
+- **Keystroke injection via ydotool.** KWin implements neither
+  `zwp_virtual_keyboard_manager_v1` nor `zwp_input_method_manager_v2`, so `wtype`
+  can never work there, and the XTEST path reaches only XWayland clients. ydotool
+  writes to `/dev/uinput`, so the kernel delivers events as if from a real
+  keyboard — which every client sees. The backend probes for a tool that actually
+  *works*, not merely one that is installed.
+- **GPU transcription on ROCm** — the Linux counterpart to DirectML on Windows.
+  faster-whisper's CTranslate2 backend is CUDA-only, so an AMD card gets nothing
+  from it on either OS.
+- Recording overlay via layer-shell; focused-window detection over KWin;
+  foreground-window detection over EWMH.
+- The shell now resolves its sidecar relative to its own checkout before falling
+  back to `~/murmur`, so a clone in any directory works.
+- Fixed three tests that asserted host-specific behavior: two took the real
+  compositor's answer instead of the stub they set up, and one asserted the
+  Windows GPU backend on every platform. 256 Python + 35 Rust green.

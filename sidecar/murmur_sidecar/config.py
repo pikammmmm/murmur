@@ -9,7 +9,7 @@ import json
 import os
 from pathlib import Path
 
-# A complete default config. Mirrors docs/superpowers/specs §7. Every key the
+# A complete default config. Mirrors docs/design/murmur-design.md §7. Every key the
 # sidecar reads MUST appear here so deep-merge guarantees its presence.
 DEFAULTS = {
     "hotkey": {"key": "backslash", "side": "either", "hold_threshold_ms": 350},

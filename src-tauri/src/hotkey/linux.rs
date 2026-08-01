@@ -17,7 +17,7 @@
 //! which is the one mechanism that (a) needs no root, (b) works on Wayland, and
 //! (c) reports both `Activated` and `Deactivated` — press *and* release, which
 //! hold-to-talk requires and which plain KDE `kglobalaccel` shortcuts do not
-//! provide. See LINUX-PORT-NOTES.md for the wiring.
+//! provide. See docs/LINUX-PORT-NOTES.md for the wiring.
 //!
 //! The dual-function text key (tap `\` to type a backslash, hold it to dictate)
 //! is out of reach for the portal specifically: its grab is by key, so a bare

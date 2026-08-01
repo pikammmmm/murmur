@@ -9,7 +9,7 @@
 //!     character, hold dictates).
 //!   * Linux — an external binder pushes press/release over a control socket,
 //!     because an unprivileged process cannot intercept keys system-wide.
-//!     See LINUX-PORT-NOTES.md; the dual-function text-key trick does not
+//!     See docs/LINUX-PORT-NOTES.md; the dual-function text-key trick does not
 //!     survive the port.
 //!
 //! The callback and configured trigger live in statics because the Windows hook
